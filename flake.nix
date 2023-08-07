@@ -22,6 +22,7 @@
             openssl
             pkg-config
             rust-analyzer
+            poppler_utils
             
             rust-bin.stable.latest.default
           ];
