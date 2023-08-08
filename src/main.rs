@@ -113,13 +113,13 @@ fn main() {
 
     let manga_chapters = server.get_chapters(&manga).unwrap();
     println!("Manga Chapters: {}", manga_chapters.len());
-    println!(
-        "{:?}",
-        manga_chapters.iter().map(|i| i.index).collect::<Vec<_>>()
-    );
+    // println!(
+    //     "{:?}",
+    //     manga_chapters.iter().map(|i| i.index).collect::<Vec<_>>()
+    // );
 
     let local_chapters = get_local_chapters(chapters_path).unwrap();
-    println!("Local: {:#?}", local_chapters);
+    // println!("Local: {:#?}", local_chapters);
 
     let mut missing_chapters = Vec::new();
 
@@ -191,7 +191,6 @@ fn process_chapter<P>(chapter: LocalChapter, path: P)
 where
     P: AsRef<Path>,
 {
-    // pdfimages -png \[0001\]_Chapter_1.pdf ./page
     let path = path.as_ref();
     let mut out_path = path.to_path_buf();
     out_path.push("page");
@@ -204,114 +203,3 @@ where
         .unwrap();
     println!("{} - Status: {}", chapter.index, status.code().unwrap());
 }
-//
-// fn process_manga(path: PathBuf) {
-//     if !path.is_dir() {
-//         panic!("Path is not a directory");
-//     }
-//
-//     let mut manga_spec = path.clone();
-//     manga_spec.push("manga.json");
-//
-//     let mut chapters_dir = path.clone();
-//     chapters_dir.push("chapters");
-//
-//     let mut processed_json = path.clone();
-//     processed_json.push("processed.json");
-//
-//     let mut processed_dir = path.clone();
-//     processed_dir.push("processed");
-//
-//     if !processed_dir.is_dir() {
-//         std::fs::create_dir(&processed_dir).unwrap();
-//     }
-//
-//     if !chapters_dir.is_dir() {
-//         panic!("No chapters directory inside path");
-//     }
-//
-//     let manga = read_manga_spec(&manga_spec).unwrap();
-//     println!("Manga Spec: {:#?}", manga);
-//
-//     let paths = std::fs::read_dir(chapters_dir)
-//         .unwrap()
-//         .map(|res| res.unwrap().path())
-//         .collect::<Vec<_>>();
-//
-//     let regex = Regex::new(r"\[(\d+)\]_\w+_([\d.]+).pdf").unwrap();
-//
-//     let mut chapters = Vec::new();
-//     for path in paths {
-//         let file_name = path.file_name().unwrap().to_string_lossy();
-//
-//         let cap = regex.captures(&file_name).unwrap();
-//         let index = &cap[1];
-//         let ch_name = &cap[2];
-//
-//         chapters.push(ChapterSpec {
-//             index: index.parse::<usize>().unwrap(),
-//             path: path.to_path_buf(),
-//             name: ch_name.to_string(),
-//         });
-//     }
-//
-//     let mut unprocessed_chapters = Vec::new();
-//
-//     let mut processed_chapters;
-//
-//     if processed_json.is_file() {
-//         let s = read_to_string(&processed_json).unwrap();
-//         processed_chapters = serde_json::from_str::<Vec<ProcessedChapter>>(&s).unwrap();
-//
-//         for ch in chapters.iter() {
-//             let res = processed_chapters.iter().find(|i| i.index == ch.index);
-//             if res.is_none() {
-//                 unprocessed_chapters.push(ch.clone());
-//             }
-//         }
-//     } else {
-//         unprocessed_chapters = chapters;
-//         processed_chapters = Vec::new();
-//     }
-//
-//     unprocessed_chapters.sort_by(|l, r| l.index.cmp(&r.index));
-//     // println!("Chapters: {:#?}", chapters);
-//
-//     let mut threads = Vec::new();
-//     for chapter in unprocessed_chapters.iter() {
-//         let mut path = processed_dir.clone();
-//         path.push(chapter.index.to_string());
-//         if path.is_dir() {
-//             std::fs::remove_dir_all(&path).unwrap();
-//             println!(
-//                 "'{} - {}' exists inside processed dir",
-//                 chapter.index, chapter.name
-//             );
-//         }
-//
-//         std::fs::create_dir(&path).unwrap();
-//
-//         let ch = chapter.clone();
-//         let p = path.clone();
-//         let handle = std::thread::spawn(|| {
-//             return process_chapter(ch, p);
-//         });
-//         threads.push(handle);
-//     }
-//
-//     for handle in threads {
-//         let res = handle.join().unwrap();
-//
-//         processed_chapters.push(ProcessedChapter {
-//             index: res.0.index,
-//             name: format!("Ch. {}", res.0.name),
-//             pages: res.1,
-//         });
-//     }
-//
-//     processed_chapters.sort_by(|l, r| l.index.cmp(&r.index));
-//
-//     let s = serde_json::to_string_pretty(&processed_chapters).unwrap();
-//     let mut file = File::create(processed_json).unwrap();
-//     writeln!(file, "{}", s).unwrap();
-// }

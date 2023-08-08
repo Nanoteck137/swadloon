@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use reqwest::blocking::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
@@ -92,7 +92,11 @@ impl Server {
         }
     }
 
-    pub fn create_manga<P>(&self, manga_spec: &MangaSpec, cover: P) -> Option<Manga>
+    pub fn create_manga<P>(
+        &self,
+        manga_spec: &MangaSpec,
+        cover: P,
+    ) -> Option<Manga>
     where
         P: AsRef<Path>,
     {
