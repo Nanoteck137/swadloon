@@ -1,8 +1,10 @@
 use std::path::Path;
 
+use log::debug;
 use reqwest::blocking::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
 
+use crate::error::{Error, Result};
 use crate::MangaSpec;
 
 const MANGA_COLLECTION_NAME: &str = "manga";
@@ -55,7 +57,7 @@ impl Server {
         }
     }
 
-    pub fn get_manga(&self, name: &str) -> Option<Manga> {
+    pub fn get_manga(&self, name: &str) -> Result<Manga> {
         let filter = format!("(name~'{}')", name);
         let url = format!(
             "{}/api/collections/{}/records?filter={}",
@@ -63,7 +65,7 @@ impl Server {
             MANGA_COLLECTION_NAME,
             urlencoding::encode(&filter)
         );
-        println!("URL: {}", url);
+        debug!("get_manga: {}", url);
 
         #[derive(Deserialize, Debug)]
         struct Result {
@@ -77,18 +79,30 @@ impl Server {
             // total_pages: usize,
         }
 
-        let res = self.client.get(url).send().ok()?;
-        let status = res.status();
-        let j = res.json::<Result>().unwrap();
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .map_err(Error::FailedToSendRequest)?;
 
-        if j.total_items > 1 {
-            panic!("More then one item???");
+        let status = res.status();
+
+        let res = res
+            .json::<Result>()
+            .map_err(Error::FailedToParseResponseJson)?;
+
+        if res.total_items > 1 {
+            return Err(Error::MoreThenOneManga);
         }
 
-        if status.is_success() && j.items.len() == 1 {
-            Some(j.items[0].clone())
+        if res.items.len() <= 0 {
+            return Err(Error::NoMangasWithName(name.to_string()));
+        }
+
+        if status.is_success() {
+            Ok(res.items[0].clone())
         } else {
-            None
+            Err(Error::RequestFailed(status))
         }
     }
 
@@ -96,7 +110,7 @@ impl Server {
         &self,
         manga_spec: &MangaSpec,
         cover: P,
-    ) -> Option<Manga>
+    ) -> Result<Manga>
     where
         P: AsRef<Path>,
     {
@@ -104,21 +118,35 @@ impl Server {
             "{}/api/collections/{}/records",
             self.endpoint, MANGA_COLLECTION_NAME,
         );
-        println!("URL: {}", url);
+        debug!("create_manga (URL): {}", url);
 
         let form = Form::new()
             .text("name", manga_spec.name.clone())
             .text("malUrl", manga_spec.mal_url.clone())
             .file("cover", cover)
-            .unwrap();
+            .map_err(Error::FailedToIncludeFileInForm)?;
 
-        let res = self.client.post(url).multipart(form).send().ok()?;
-        let manga = res.json::<Manga>().ok()?;
+        let res = self
+            .client
+            .post(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::FailedToSendRequest)?;
 
-        Some(manga)
+        let status = res.status();
+
+        if status.is_success() {
+            let manga = res
+                .json::<Manga>()
+                .map_err(Error::FailedToParseResponseJson)?;
+
+            Ok(manga)
+        } else {
+            Err(Error::RequestFailed(status))
+        }
     }
 
-    pub fn get_chapters(&self, manga: &Manga) -> Option<Vec<Chapter>> {
+    pub fn get_chapters(&self, manga: &Manga) -> Result<Vec<Chapter>> {
         let filter = format!("(manga~'{}')", manga.id);
         let url = format!(
             "{}/api/collections/{}/records?perPage=999&sort=index&filter={}",
@@ -126,7 +154,7 @@ impl Server {
             CHAPTERS_COLLECTION_NAME,
             urlencoding::encode(&filter)
         );
-        println!("URL: {}", url);
+        debug!("get_chapters: {}", url);
 
         #[derive(Deserialize, Debug)]
         struct Result {
@@ -140,19 +168,27 @@ impl Server {
             total_pages: usize,
         }
 
-        let res = self.client.get(url).send().ok()?;
-        let status = res.status();
-        let j = res.json::<Result>().unwrap();
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .map_err(Error::FailedToSendRequest)?;
 
-        // TODO(patrik): This need to be fixed
-        if j.total_pages > 1 {
-            panic!("More then one page of chapters");
-        }
+        let status = res.status();
 
         if status.is_success() {
-            Some(j.items)
+            let res = res
+                .json::<Result>()
+                .map_err(Error::FailedToParseResponseJson)?;
+
+            // TODO(patrik): This need to be fixed
+            if res.total_pages > 1 {
+                panic!("More then one page of chapters");
+            }
+
+            Ok(res.items)
         } else {
-            None
+            Err(Error::RequestFailed(status))
         }
     }
 
@@ -162,12 +198,12 @@ impl Server {
         index: usize,
         name: String,
         pages: &[String],
-    ) -> Option<Chapter> {
+    ) -> Result<Chapter> {
         let url = format!(
             "{}/api/collections/{}/records",
             self.endpoint, CHAPTERS_COLLECTION_NAME,
         );
-        println!("URL: {}", url);
+        debug!("add_chapter: {}", url);
 
         let mut form = Form::new()
             .text("index", index.to_string())
@@ -175,17 +211,27 @@ impl Server {
             .text("manga", manga.id.clone());
 
         for page in pages {
-            form = form.file("pages", page).unwrap();
+            form = form
+                .file("pages", page)
+                .map_err(Error::FailedToIncludeFileInForm)?;
         }
 
-        let res = self.client.post(url).multipart(form).send().ok()?;
+        let res = self
+            .client
+            .post(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::FailedToSendRequest)?;
+
         let status = res.status();
 
         if status.is_success() {
-            let res = res.json::<Chapter>().ok()?;
-            Some(res)
+            let res = res
+                .json::<Chapter>()
+                .map_err(Error::FailedToParseResponseJson)?;
+            Ok(res)
         } else {
-            None
+            Err(Error::RequestFailed(status))
         }
     }
 }

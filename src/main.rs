@@ -8,6 +8,9 @@ use clap::Parser;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
+
+mod error;
 mod server;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,8 +76,9 @@ where
 }
 
 fn main() {
+    env_logger::init();
+
     let args = Args::parse();
-    println!("Args: {:#?}", args);
 
     let server = server::Server::new(args.endpoint);
 
@@ -89,6 +93,14 @@ fn main() {
 
     let mut cover_path = path.clone();
     cover_path.push("cover.png");
+
+    if !cover_path.is_file() {
+        cover_path.set_extension("jpg");
+    }
+
+    if !cover_path.is_file() {
+        panic!("No cover");
+    }
 
     let mut chapters_path = path.clone();
     chapters_path.push("chapters");
@@ -105,10 +117,10 @@ fn main() {
     }
 
     let manga_spec = read_manga_spec(manga_spec).unwrap();
-    let manga = if let Some(manga) = server.get_manga(&manga_spec.name) {
-        manga
-    } else {
-        server.create_manga(&manga_spec, cover_path).unwrap()
+    let manga = match server.get_manga(&manga_spec.name) {
+        Ok(manga) => manga,
+        Err(Error::NoMangasWithName(_)) => server.create_manga(&manga_spec, cover_path).unwrap(),
+        Err(_) => panic!("Failed"),
     };
 
     let manga_chapters = server.get_chapters(&manga).unwrap();
@@ -173,7 +185,7 @@ fn main() {
         pages.sort_by(|l, r| l.0.cmp(&r.0));
 
         let pages = pages.into_iter().map(|i| i.1).collect::<Vec<_>>();
-        server.add_chapter(&manga, missing.index, missing.name, &pages);
+        server.add_chapter(&manga, missing.index, missing.name, &pages).unwrap();
     }
 }
 
