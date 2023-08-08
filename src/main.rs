@@ -59,13 +59,13 @@ struct MangaResponse {
     #[serde(rename = "malUrl")]
     mal_url: String,
     name: String,
-    thumbnail: String,
+    cover: String,
 
     created: String,
     updated: String,
 }
 
-fn create_manga(manga: &Manga) -> Option<MangaResponse> {
+fn create_manga(endpoint: &str, manga: &Manga) -> Option<MangaResponse> {
     let client = reqwest::blocking::Client::new();
 
     let form = manga.to_form();
@@ -73,8 +73,8 @@ fn create_manga(manga: &Manga) -> Option<MangaResponse> {
     let collection = "manga";
     let res = client
         .post(format!(
-            "http://127.0.0.1:8090/api/collections/{}/records",
-            collection
+            "{}/api/collections/{}/records",
+            endpoint, collection
         ))
         .multipart(form)
         .send()
@@ -141,7 +141,18 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    ProcessManga { path: PathBuf },
+    ProcessManga {
+        path: PathBuf,
+    },
+    CreateManga {
+        endpoint: String,
+        path: PathBuf,
+    },
+    PushChapters {
+        endpoint: String,
+        path: PathBuf,
+        manga_id: String,
+    },
 }
 
 fn read_manga_spec<P>(manga_spec: P) -> Option<MangaSpec>
@@ -277,7 +288,10 @@ fn process_manga(path: PathBuf) {
         path.push(chapter.index.to_string());
         if path.is_dir() {
             std::fs::remove_dir_all(&path).unwrap();
-            println!("'{} - {}' exists inside processed dir", chapter.index, chapter.name);
+            println!(
+                "'{} - {}' exists inside processed dir",
+                chapter.index, chapter.name
+            );
         }
 
         std::fs::create_dir(&path).unwrap();
@@ -313,5 +327,88 @@ fn main() {
 
     match args.command {
         Commands::ProcessManga { path } => process_manga(path),
+        Commands::CreateManga { endpoint, path } => {
+            if !path.is_dir() {
+                panic!("Path is not a directory");
+            }
+
+            let mut manga_spec = path.clone();
+            manga_spec.push("manga.json");
+
+            let spec = read_manga_spec(manga_spec).unwrap();
+
+            let mut cover = path.clone();
+            cover.push("cover.png");
+
+            let manga = Manga {
+                name: spec.name,
+                mal_url: spec.mal_url,
+                cover,
+            };
+
+            let res = create_manga(&endpoint, &manga);
+            println!("Res: {:#?}", res);
+        }
+
+        Commands::PushChapters {
+            endpoint,
+            path,
+            manga_id,
+        } => {
+            // let client = reqwest::blocking::Client::new();
+            // let res = client
+            //     .get(format!("{}/api/collections/chapters/records", endpoint))
+            //     .send()
+            //     .unwrap();
+            //
+            // if res.status().is_success() {
+            //     println!("Res: {:?}", res.json::<serde_json::Value>());
+            // } else {
+            //     println!("Res: {:#?}", res);
+            // }
+
+            if !path.is_dir() {
+                panic!("Path is not a directory");
+            }
+
+            let mut processed_json = path.clone();
+            processed_json.push("processed.json");
+
+            // let mut manga_spec = path.clone();
+            // manga_spec.push("manga.json");
+
+            let s = read_to_string(processed_json).unwrap();
+            let chapters = serde_json::from_str::<Vec<ProcessedChapter>>(&s).unwrap();
+
+            let client = reqwest::blocking::Client::new();
+
+            for chapter in chapters {
+                let mut form = Form::new()
+                    .text("num", chapter.index.to_string())
+                    .text("name", chapter.name)
+                    .text("manga", manga_id.clone());
+
+                for page in chapter.pages {
+                    let mut path = path.clone();
+                    path.push("processed");
+                    path.push(chapter.index.to_string());
+                    path.push(page);
+                    form = form
+                        .file("pages", path)
+                        .unwrap();
+                }
+
+                let collection = "chapters";
+                let res = client
+                    .post(format!(
+                        "{}/api/collections/{}/records",
+                        endpoint, collection
+                    ))
+                    .multipart(form)
+                    .send()
+                    .unwrap();
+                println!("Res: {:#?}", res.json::<serde_json::Value>());
+            }
+        }
     }
 }
