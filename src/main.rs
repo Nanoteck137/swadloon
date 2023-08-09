@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::Parser;
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use server::{Manga, Server};
@@ -205,6 +205,8 @@ fn main() {
     info!("{} missing chapters", num_missing_chapters);
 
     if num_missing_chapters <= 0 {
+        warn!("No chapters to process");
+        println!("No chapters to process");
         return;
     }
 
