@@ -165,6 +165,11 @@ fn main() {
         std::fs::create_dir_all(&out_dir).unwrap();
     }
 
+    info!("Manga Directory: {:?}", path);
+    info!("Manga Spec: {:?}", manga_spec);
+    info!("Manga Cover: {:?}", cover_path);
+    info!("Output Directory: {:?}", out_dir);
+
     let manga_spec = read_manga_spec(manga_spec).unwrap();
     let manga = match server.get_manga(&manga_spec.name) {
         Ok(manga) => manga,
