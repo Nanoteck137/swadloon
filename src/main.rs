@@ -203,7 +203,7 @@ fn main() {
         return;
     }
 
-    let mut num_threads = 4;
+    let mut num_threads = args.num_threads;
     if num_missing_chapters < num_threads {
         num_threads = num_missing_chapters;
     }
