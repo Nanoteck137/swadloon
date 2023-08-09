@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use log::debug;
+use log::trace;
 use reqwest::blocking::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,7 @@ pub struct Chapter {
     pub collection_name: String,
 }
 
+#[derive(Clone)]
 pub struct Server {
     endpoint: String,
     client: Client,
@@ -65,7 +66,7 @@ impl Server {
             MANGA_COLLECTION_NAME,
             urlencoding::encode(&filter)
         );
-        debug!("get_manga: {}", url);
+        trace!("get_manga: {}", url);
 
         #[derive(Deserialize, Debug)]
         struct Result {
@@ -118,7 +119,7 @@ impl Server {
             "{}/api/collections/{}/records",
             self.endpoint, MANGA_COLLECTION_NAME,
         );
-        debug!("create_manga (URL): {}", url);
+        trace!("create_manga (URL): {}", url);
 
         let form = Form::new()
             .text("name", manga_spec.name.clone())
@@ -154,7 +155,7 @@ impl Server {
             CHAPTERS_COLLECTION_NAME,
             urlencoding::encode(&filter)
         );
-        debug!("get_chapters: {}", url);
+        trace!("get_chapters: {}", url);
 
         #[derive(Deserialize, Debug)]
         struct Result {
@@ -203,7 +204,7 @@ impl Server {
             "{}/api/collections/{}/records",
             self.endpoint, CHAPTERS_COLLECTION_NAME,
         );
-        debug!("add_chapter: {}", url);
+        trace!("add_chapter: {}", url);
 
         let mut form = Form::new()
             .text("index", index.to_string())
