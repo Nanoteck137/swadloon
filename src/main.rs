@@ -133,7 +133,6 @@ fn main() {
     env_logger::init();
 
     let args = Args::parse();
-    println!("Args: {:#?}", args);
 
     let server = server::Server::new(args.endpoint);
 
@@ -161,8 +160,6 @@ fn main() {
 
     let mut out_dir = args.out_dir;
     out_dir.push(name);
-
-    println!("Processed: {:?}", out_dir);
 
     if !out_dir.is_dir() {
         std::fs::create_dir_all(&out_dir).unwrap();
