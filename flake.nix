@@ -24,7 +24,10 @@
             rust-analyzer
             poppler_utils
             
-            rust-bin.stable.latest.default
+            (rust-bin.stable.latest.default.override {
+              extensions = [ "rust-src" ];
+              targets = [ "x86_64-unknown-linux-gnu" "x86_64-unknown-linux-musl" ];
+            })
           ];
         };
       }

@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::Parser;
-use log::{info, trace, warn};
+use log::{debug, info, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use server::{Manga, Server};
@@ -123,9 +123,8 @@ fn worker_thread<P>(
         }
 
         let pages = get_pages_for_chapter(&work, &out_dir);
-        server
-            .add_chapter(&manga, work.index, work.name, &pages)
-            .unwrap();
+        let _ =
+            server.add_chapter(&manga, work.index, work.name.clone(), &pages);
     }
 }
 

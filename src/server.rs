@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use log::trace;
+use log::{debug, trace};
+use reqwest::blocking::ClientBuilder;
 use reqwest::blocking::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
 
@@ -52,10 +53,9 @@ pub struct Server {
 
 impl Server {
     pub fn new(endpoint: String) -> Self {
-        Self {
-            endpoint,
-            client: Client::new(),
-        }
+        let client = ClientBuilder::new().timeout(None).build().unwrap();
+
+        Self { endpoint, client }
     }
 
     pub fn get_manga(&self, name: &str) -> Result<Manga> {
@@ -206,10 +206,14 @@ impl Server {
         );
         trace!("add_chapter: {}", url);
 
+        let cover = &pages[0];
+
         let mut form = Form::new()
             .text("index", index.to_string())
             .text("name", name.to_string())
-            .text("manga", manga.id.clone());
+            .text("manga", manga.id.clone())
+            .file("cover", cover)
+            .unwrap();
 
         for page in pages {
             form = form
@@ -232,6 +236,12 @@ impl Server {
                 .map_err(Error::FailedToParseResponseJson)?;
             Ok(res)
         } else {
+            debug!(
+                "add_chapter {} (REQUEST FAILED {}): {:?}",
+                index,
+                status,
+                res.json::<serde_json::Value>().unwrap()
+            );
             Err(Error::RequestFailed(status))
         }
     }
