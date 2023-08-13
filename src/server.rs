@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 use crate::MangaSpec;
 
-const MANGA_COLLECTION_NAME: &str = "manga";
+const MANGA_COLLECTION_NAME: &str = "mangas";
 const CHAPTERS_COLLECTION_NAME: &str = "chapters";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
