@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::Parser;
-use log::{debug, info, trace, warn};
+use log::{info, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use server::{Manga, Server};
@@ -35,16 +35,16 @@ struct Args {
     /// Path to the output directory where all the processed chapters will be stored
     out_dir: PathBuf,
 
+    #[arg(short, long, default_value_t = false)]
+    update: bool,
+
     /// Number of threads for processing chapters
     #[arg(short, long, default_value_t = 1)]
     num_threads: usize,
 }
 
-fn read_manga_spec<P>(manga_spec: P) -> Option<MangaSpec>
-where
-    P: AsRef<Path>,
-{
-    let s = read_to_string(manga_spec).ok()?;
+fn read_manga_spec(paths: &Paths) -> Option<MangaSpec> {
+    let s = read_to_string(&paths.manga_spec).ok()?;
 
     serde_json::from_str::<MangaSpec>(&s).ok()
 }
@@ -129,6 +129,50 @@ fn worker_thread<P>(
     }
 }
 
+struct Paths {
+    base: PathBuf,
+    manga_spec: PathBuf,
+    cover_path: PathBuf,
+    out_dir: PathBuf,
+}
+
+impl Paths {
+    fn new(base: PathBuf, mut out_dir: PathBuf) -> Self {
+        if !base.is_dir() {
+            // TODO(patrik): Better error message
+            panic!("Path is not a directory");
+        }
+
+        let mut manga_spec = base.clone();
+        manga_spec.push("manga.json");
+
+        let mut cover_path = base.clone();
+        cover_path.push("cover.png");
+
+        if !cover_path.is_file() {
+            cover_path.set_extension("jpg");
+        }
+
+        if !cover_path.is_file() {
+            panic!("No cover");
+        }
+
+        let name = base.file_name().unwrap();
+        out_dir.push(name);
+
+        if !out_dir.is_dir() {
+            std::fs::create_dir_all(&out_dir).unwrap();
+        }
+
+        Paths {
+            base,
+            manga_spec,
+            cover_path,
+            out_dir,
+        }
+    }
+}
+
 fn main() {
     env_logger::init();
 
@@ -136,45 +180,23 @@ fn main() {
 
     let server = server::Server::new(args.endpoint);
 
-    let path = args.path;
+    let paths = Paths::new(args.path, args.out_dir);
 
-    if !path.is_dir() {
-        panic!("Path is not a directory");
+    info!("Manga Directory: {:?}", paths.base);
+    info!("Manga Spec: {:?}", paths.manga_spec);
+    info!("Manga Cover: {:?}", paths.cover_path);
+    info!("Output Directory: {:?}", paths.out_dir);
+
+    if args.update {
+        info!("Running in update mode");
     }
 
-    let mut manga_spec = path.clone();
-    manga_spec.push("manga.json");
+    let manga_spec = read_manga_spec(&paths).unwrap();
 
-    let mut cover_path = path.clone();
-    cover_path.push("cover.png");
-
-    if !cover_path.is_file() {
-        cover_path.set_extension("jpg");
-    }
-
-    if !cover_path.is_file() {
-        panic!("No cover");
-    }
-
-    let name = path.file_name().unwrap();
-
-    let mut out_dir = args.out_dir;
-    out_dir.push(name);
-
-    if !out_dir.is_dir() {
-        std::fs::create_dir_all(&out_dir).unwrap();
-    }
-
-    info!("Manga Directory: {:?}", path);
-    info!("Manga Spec: {:?}", manga_spec);
-    info!("Manga Cover: {:?}", cover_path);
-    info!("Output Directory: {:?}", out_dir);
-
-    let manga_spec = read_manga_spec(manga_spec).unwrap();
     let manga = match server.get_manga(&manga_spec.name) {
         Ok(manga) => manga,
         Err(Error::NoMangasWithName(_)) => {
-            server.create_manga(&manga_spec, cover_path).unwrap()
+            server.create_manga(&manga_spec, paths.cover_path).unwrap()
         }
         Err(_) => panic!("Failed"),
     };
@@ -186,7 +208,7 @@ fn main() {
     //     manga_chapters.iter().map(|i| i.index).collect::<Vec<_>>()
     // );
 
-    let local_chapters = get_local_chapters(path).unwrap();
+    let local_chapters = get_local_chapters(&paths.base).unwrap();
     info!("{} chapters locally", local_chapters.len());
     // println!("Local: {:#?}", local_chapters);
 
@@ -222,7 +244,7 @@ fn main() {
     let mut thread_handles = Vec::new();
     for tid in 0..num_threads {
         let work_queue_handle = work_queue.clone();
-        let o = out_dir.clone();
+        let o = paths.out_dir.clone();
         let s = server.clone();
         let m = manga.clone();
         let handle = std::thread::spawn(move || {
