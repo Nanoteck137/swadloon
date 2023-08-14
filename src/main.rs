@@ -19,9 +19,27 @@ mod error;
 mod server;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct MangaSpec {
-    name: String,
+struct MangaSpec {
+    name: Option<String>,
     #[serde(rename = "malUrl")]
+    mal_url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RawMangaInfo {
+    name: String,
+    description_formatted: String,
+    description_text: String,
+    status: String,
+    year: usize,
+    publisher: String,
+    total_issues: usize,
+    publication_run: String
+}
+
+#[derive(Debug)]
+pub struct MangaInfo {
+    name: String,
     mal_url: String,
 }
 
@@ -32,8 +50,6 @@ struct Args {
     endpoint: String,
     /// Path to the manga directory (i.e. where the 'manga.json' is)
     path: PathBuf,
-    /// Path to the output directory where all the processed chapters will be stored
-    out_dir: PathBuf,
 
     #[arg(short, long, default_value_t = false)]
     update: bool,
@@ -45,8 +61,23 @@ struct Args {
 
 fn read_manga_spec(paths: &Paths) -> Option<MangaSpec> {
     let s = read_to_string(&paths.manga_spec).ok()?;
-
     serde_json::from_str::<MangaSpec>(&s).ok()
+}
+
+fn read_manga_info(paths: &Paths) -> Option<MangaInfo> {
+    let spec = read_manga_spec(paths)?;
+
+    let s = read_to_string(&paths.manga_info).ok()?;
+
+    let v = serde_json::from_str::<serde_json::Value>(&s).unwrap();
+    let v = &v["metadata"];
+    let v = serde_json::from_value::<RawMangaInfo>(v.clone()).unwrap();
+    println!("{:#?}", v);
+
+    Some(MangaInfo {
+        name: spec.name.unwrap_or(v.name),
+        mal_url: spec.mal_url,
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -54,6 +85,30 @@ struct LocalChapter {
     index: usize,
     name: String,
     path: PathBuf,
+
+    pages: Vec<PathBuf>,
+}
+
+fn get_chapter_pages<P>(path: P) -> Option<Vec<PathBuf>>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let paths = path.read_dir().unwrap();
+
+    let mut res = Vec::new();
+    for path in paths {
+        let path = path.ok()?;
+        let path = path.path();
+
+        let filename = path.file_stem()?.to_string_lossy();
+        let page_num = filename.parse::<usize>().ok()?;
+        res.push((page_num, path));
+    }
+
+    res.sort_by(|l, r| l.0.cmp(&r.0));
+
+    Some(res.into_iter().map(|i| i.1).collect::<Vec<_>>())
 }
 
 fn get_local_chapters<P>(path: P) -> Option<Vec<LocalChapter>>
@@ -62,7 +117,7 @@ where
 {
     let paths = std::fs::read_dir(path).ok()?;
 
-    let regex = Regex::new(r"\[(\d+)\]_\w+_([\d.]+).pdf").unwrap();
+    let regex = Regex::new(r"\[(\d+)\]_\w+_([\d.]+)").ok()?;
 
     let mut res = Vec::new();
     for path in paths {
@@ -74,10 +129,13 @@ where
             let index = captures[1].parse::<usize>().ok()?;
             let name = &captures[2];
 
+            let pages = get_chapter_pages(&path)?;
+
             res.push(LocalChapter {
                 index,
                 name: name.to_string(),
                 path,
+                pages,
             });
         }
     }
@@ -87,17 +145,12 @@ where
     Some(res)
 }
 
-fn worker_thread<P>(
+fn worker_thread(
     tid: usize,
     work_queue: Arc<Mutex<VecDeque<LocalChapter>>>,
-    out_dir: P,
     server: Server,
     manga: Manga,
-) where
-    P: AsRef<Path>,
-{
-    let out_dir = out_dir.as_ref();
-
+) {
     'work_loop: loop {
         let work = {
             let mut lock =
@@ -111,32 +164,24 @@ fn worker_thread<P>(
 
         trace!("{}: working on: {}", tid, work.index);
 
-        // TODO(patrik): Move to path and remove is_already_processed
-        if is_already_processed(&out_dir, &work) {
-            info!("{} is already processed", work.index);
-        } else {
-            let mut p = out_dir.to_path_buf();
-            p.push(work.index.to_string());
-            std::fs::create_dir(&p).unwrap();
-
-            process_chapter(&work, p);
-        }
-
-        let pages = get_pages_for_chapter(&work, &out_dir);
-        let _ =
-            server.add_chapter(&manga, work.index, work.name.clone(), &pages);
+        let _ = server.add_chapter(
+            &manga,
+            work.index,
+            work.name.clone(),
+            &work.pages,
+        );
     }
 }
 
 struct Paths {
     base: PathBuf,
     manga_spec: PathBuf,
+    manga_info: PathBuf,
     cover_path: PathBuf,
-    out_dir: PathBuf,
 }
 
 impl Paths {
-    fn new(base: PathBuf, mut out_dir: PathBuf) -> Self {
+    fn new(base: PathBuf) -> Self {
         if !base.is_dir() {
             // TODO(patrik): Better error message
             panic!("Path is not a directory");
@@ -144,6 +189,17 @@ impl Paths {
 
         let mut manga_spec = base.clone();
         manga_spec.push("manga.json");
+
+        if !manga_spec.is_file() {
+            panic!("No manga spec");
+        }
+
+        let mut manga_info = base.clone();
+        manga_info.push("series.json");
+
+        if !manga_info.is_file() {
+            panic!("No manga info");
+        }
 
         let mut cover_path = base.clone();
         cover_path.push("cover.png");
@@ -156,18 +212,11 @@ impl Paths {
             panic!("No cover");
         }
 
-        let name = base.file_name().unwrap();
-        out_dir.push(name);
-
-        if !out_dir.is_dir() {
-            std::fs::create_dir_all(&out_dir).unwrap();
-        }
-
         Paths {
             base,
             manga_spec,
+            manga_info,
             cover_path,
-            out_dir,
         }
     }
 }
@@ -179,25 +228,24 @@ fn main() {
 
     let server = server::Server::new(args.endpoint);
 
-    let paths = Paths::new(args.path, args.out_dir);
+    let paths = Paths::new(args.path);
 
     info!("Manga Directory: {:?}", paths.base);
     info!("Manga Spec: {:?}", paths.manga_spec);
     info!("Manga Cover: {:?}", paths.cover_path);
-    info!("Output Directory: {:?}", paths.out_dir);
 
     if args.update {
         info!("Running in update mode");
     }
 
-    let manga_spec = read_manga_spec(&paths).unwrap();
+    let manga_info = read_manga_info(&paths).unwrap();
 
-    let manga = match server.get_manga(&manga_spec.name) {
+    let manga = match server.get_manga(&manga_info.name) {
         Ok(manga) => manga,
         Err(Error::NoMangasWithName(_)) => {
-            server.create_manga(&manga_spec, paths.cover_path).unwrap()
+            server.create_manga(&manga_info, paths.cover_path).unwrap()
         }
-        Err(_) => panic!("Failed"),
+        Err(e) => panic!("Failed: {:?}", e),
     };
 
     let manga_chapters = server.get_chapters(&manga).unwrap();
@@ -243,11 +291,10 @@ fn main() {
     let mut thread_handles = Vec::new();
     for tid in 0..num_threads {
         let work_queue_handle = work_queue.clone();
-        let o = paths.out_dir.clone();
         let s = server.clone();
         let m = manga.clone();
         let handle = std::thread::spawn(move || {
-            worker_thread(tid, work_queue_handle, o, s, m);
+            worker_thread(tid, work_queue_handle, s, m);
         });
         thread_handles.push(handle);
     }
@@ -310,21 +357,4 @@ where
     path.push(missing.index.to_string());
 
     path.is_dir()
-}
-
-fn process_chapter<P>(chapter: &LocalChapter, path: P)
-where
-    P: AsRef<Path>,
-{
-    let path = path.as_ref();
-    let mut out_path = path.to_path_buf();
-    out_path.push("page");
-
-    let status = Command::new("pdfimages")
-        .arg("-png")
-        .arg(&chapter.path)
-        .arg(out_path)
-        .status()
-        .unwrap();
-    println!("{} - Status: {}", chapter.index, status.code().unwrap());
 }

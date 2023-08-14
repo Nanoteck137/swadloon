@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use log::{debug, trace};
 use reqwest::blocking::ClientBuilder;
@@ -6,7 +6,7 @@ use reqwest::blocking::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::MangaSpec;
+use crate::MangaInfo;
 
 const MANGA_COLLECTION_NAME: &str = "mangas";
 const CHAPTERS_COLLECTION_NAME: &str = "chapters";
@@ -60,10 +60,12 @@ impl Server {
 
     pub fn get_manga(&self, name: &str) -> Result<Manga> {
         let filter = format!("(name~'{}')", name);
+        println!("Name: {:?}", name);
         let url = format!(
             "{}/api/collections/{}/records?filter={}",
             self.endpoint,
             MANGA_COLLECTION_NAME,
+            // filter
             urlencoding::encode(&filter)
         );
         trace!("get_manga: {}", url);
@@ -88,28 +90,34 @@ impl Server {
 
         let status = res.status();
 
-        let res = res
-            .json::<Result>()
-            .map_err(Error::FailedToParseResponseJson)?;
-
-        if res.total_items > 1 {
-            return Err(Error::MoreThenOneManga);
-        }
-
-        if res.items.len() <= 0 {
-            return Err(Error::NoMangasWithName(name.to_string()));
-        }
-
         if status.is_success() {
+            let res = res
+                .json::<Result>()
+                .map_err(Error::FailedToParseResponseJson)?;
+
+            if res.total_items > 1 {
+                return Err(Error::MoreThenOneManga);
+            }
+
+            if res.items.len() <= 0 {
+                return Err(Error::NoMangasWithName(name.to_string()));
+            }
+
             Ok(res.items[0].clone())
         } else {
+            debug!(
+                "get_manga (REQUEST FAILED {}): {:?}",
+                status,
+                res.json::<serde_json::Value>().unwrap()
+            );
+
             Err(Error::RequestFailed(status))
         }
     }
 
     pub fn create_manga<P>(
         &self,
-        manga_spec: &MangaSpec,
+        manga_info: &MangaInfo,
         cover: P,
     ) -> Result<Manga>
     where
@@ -122,8 +130,8 @@ impl Server {
         trace!("create_manga (URL): {}", url);
 
         let form = Form::new()
-            .text("name", manga_spec.name.clone())
-            .text("malUrl", manga_spec.mal_url.clone())
+            .text("name", manga_info.name.clone())
+            .text("malUrl", manga_info.mal_url.clone())
             .file("cover", cover)
             .map_err(Error::FailedToIncludeFileInForm)?;
 
@@ -143,6 +151,12 @@ impl Server {
 
             Ok(manga)
         } else {
+            debug!(
+                "create_manga (REQUEST FAILED {}): {:?}",
+                status,
+                res.json::<serde_json::Value>().unwrap()
+            );
+
             Err(Error::RequestFailed(status))
         }
     }
@@ -198,7 +212,7 @@ impl Server {
         manga: &Manga,
         index: usize,
         name: String,
-        pages: &[String],
+        pages: &[PathBuf],
     ) -> Result<Chapter> {
         let url = format!(
             "{}/api/collections/{}/records",
