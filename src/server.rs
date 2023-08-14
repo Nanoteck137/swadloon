@@ -45,7 +45,7 @@ pub struct Chapter {
     pub collection_name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Server {
     endpoint: String,
     client: Client,
@@ -59,8 +59,7 @@ impl Server {
     }
 
     pub fn get_manga(&self, name: &str) -> Result<Manga> {
-        let filter = format!("(name~'{}')", name);
-        println!("Name: {:?}", name);
+        let filter = format!("(name='{}')", name);
         let url = format!(
             "{}/api/collections/{}/records?filter={}",
             self.endpoint,

@@ -3,17 +3,17 @@ use std::{
     fs::read_to_string,
     path::{Path, PathBuf},
     process::Command,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
 
-use clap::Parser;
-use log::{debug, info, trace, warn};
+use clap::{Parser, Subcommand};
+use log::{debug, error, info, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use server::{Manga, Server};
 
-use crate::error::Error;
+use crate::error::{Error, Result};
 
 mod error;
 mod server;
@@ -34,7 +34,7 @@ struct RawMangaInfo {
     year: usize,
     publisher: String,
     total_issues: usize,
-    publication_run: String
+    publication_run: String,
 }
 
 #[derive(Debug)]
@@ -46,35 +46,56 @@ pub struct MangaInfo {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// The pocketbase endpoint (example: http://localhost:8090)
-    endpoint: String,
-    /// Path to the manga directory (i.e. where the 'manga.json' is)
-    path: PathBuf,
-
     #[arg(short, long, default_value_t = false)]
     update: bool,
 
     /// Number of threads for processing chapters
     #[arg(short, long, default_value_t = 1)]
     num_threads: usize,
+
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn read_manga_spec(paths: &Paths) -> Option<MangaSpec> {
-    let s = read_to_string(&paths.manga_spec).ok()?;
-    serde_json::from_str::<MangaSpec>(&s).ok()
+#[derive(Subcommand, Debug)]
+enum Commands {
+    UploadSingle {
+        /// The pocketbase endpoint (example: http://localhost:8090)
+        #[arg(short, long)]
+        endpoint: String,
+
+        path: PathBuf,
+    },
+
+    UploadMultiple {
+        /// The pocketbase endpoint (example: http://localhost:8090)
+        #[arg(short, long)]
+        endpoint: String,
+
+        dir: PathBuf,
+    },
 }
 
-fn read_manga_info(paths: &Paths) -> Option<MangaInfo> {
+fn read_manga_spec(paths: &Paths) -> Result<MangaSpec> {
+    let s = read_to_string(&paths.manga_spec)
+        .map_err(Error::ReadMangaSpecUnknown)?;
+    serde_json::from_str::<MangaSpec>(&s)
+        .map_err(|_| Error::InvalidMangaSpec(paths.manga_spec.clone()))
+}
+
+fn read_manga_info(paths: &Paths) -> Result<MangaInfo> {
     let spec = read_manga_spec(paths)?;
 
-    let s = read_to_string(&paths.manga_info).ok()?;
+    let s = read_to_string(&paths.manga_info)
+        .map_err(|_| Error::InvalidSeriesInfo(paths.manga_info.clone()))?;
 
-    let v = serde_json::from_str::<serde_json::Value>(&s).unwrap();
+    let v = serde_json::from_str::<serde_json::Value>(&s)
+        .map_err(|_| Error::InvalidSeriesInfo(paths.manga_info.clone()))?;
     let v = &v["metadata"];
-    let v = serde_json::from_value::<RawMangaInfo>(v.clone()).unwrap();
-    println!("{:#?}", v);
+    let v = serde_json::from_value::<RawMangaInfo>(v.clone())
+        .map_err(|_| Error::InvalidSeriesInfo(paths.manga_info.clone()))?;
 
-    Some(MangaInfo {
+    Ok(MangaInfo {
         name: spec.name.unwrap_or(v.name),
         mal_url: spec.mal_url,
     })
@@ -85,8 +106,6 @@ struct LocalChapter {
     index: usize,
     name: String,
     path: PathBuf,
-
-    pages: Vec<PathBuf>,
 }
 
 fn get_chapter_pages<P>(path: P) -> Option<Vec<PathBuf>>
@@ -129,13 +148,10 @@ where
             let index = captures[1].parse::<usize>().ok()?;
             let name = &captures[2];
 
-            let pages = get_chapter_pages(&path)?;
-
             res.push(LocalChapter {
                 index,
                 name: name.to_string(),
                 path,
-                pages,
             });
         }
     }
@@ -147,9 +163,8 @@ where
 
 fn worker_thread(
     tid: usize,
-    work_queue: Arc<Mutex<VecDeque<LocalChapter>>>,
-    server: Server,
-    manga: Manga,
+    mangas: Arc<RwLock<VecDeque<PrepManga>>>,
+    work_queue: Arc<Mutex<VecDeque<MissingChapter>>>,
 ) {
     'work_loop: loop {
         let work = {
@@ -162,17 +177,25 @@ fn worker_thread(
             }
         };
 
-        trace!("{}: working on: {}", tid, work.index);
+        let lock =
+            mangas.read().expect("Failed to aquire read lock on mangas");
+        let manga = &lock[work.manga_index];
+        let chapter = &manga.missing_chapters[work.chapter_index];
 
-        let _ = server.add_chapter(
-            &manga,
-            work.index,
-            work.name.clone(),
-            &work.pages,
+        trace!("{}: working on: {}-{}", tid, manga.info.name, chapter.index);
+
+        let pages = get_chapter_pages(&chapter.path).unwrap();
+
+        let _ = manga.server.add_chapter(
+            &manga.manga,
+            chapter.index,
+            chapter.name.clone(),
+            &pages,
         );
     }
 }
 
+#[derive(Debug)]
 struct Paths {
     base: PathBuf,
     manga_spec: PathBuf,
@@ -181,24 +204,23 @@ struct Paths {
 }
 
 impl Paths {
-    fn new(base: PathBuf) -> Self {
+    fn new(base: PathBuf) -> Result<Self> {
         if !base.is_dir() {
-            // TODO(patrik): Better error message
-            panic!("Path is not a directory");
-        }
-
-        let mut manga_spec = base.clone();
-        manga_spec.push("manga.json");
-
-        if !manga_spec.is_file() {
-            panic!("No manga spec");
+            return Err(Error::PathNotDirectory(base));
         }
 
         let mut manga_info = base.clone();
         manga_info.push("series.json");
 
         if !manga_info.is_file() {
-            panic!("No manga info");
+            return Err(Error::NoSeriesInfo(base));
+        }
+
+        let mut manga_spec = base.clone();
+        manga_spec.push("manga.json");
+
+        if !manga_spec.is_file() {
+            return Err(Error::NoMangaSpec(base));
         }
 
         let mut cover_path = base.clone();
@@ -209,60 +231,61 @@ impl Paths {
         }
 
         if !cover_path.is_file() {
-            panic!("No cover");
+            return Err(Error::NoCoverImage(base));
         }
 
-        Paths {
+        Ok(Paths {
             base,
             manga_spec,
             manga_info,
             cover_path,
-        }
+        })
     }
 }
 
-fn main() {
-    env_logger::init();
+#[derive(Debug)]
+struct PrepManga {
+    server: Server,
+    paths: Paths,
+    manga: Manga,
+    info: MangaInfo,
 
-    let args = Args::parse();
+    missing_chapters: VecDeque<LocalChapter>,
+}
 
-    let server = server::Server::new(args.endpoint);
+fn prep_manga<P>(path: P, endpoint: String) -> Result<PrepManga>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
 
-    let paths = Paths::new(args.path);
+    let server = server::Server::new(endpoint);
+    let paths = Paths::new(path.to_path_buf())?;
 
-    info!("Manga Directory: {:?}", paths.base);
-    info!("Manga Spec: {:?}", paths.manga_spec);
-    info!("Manga Cover: {:?}", paths.cover_path);
+    trace!("Manga Directory: {:?}", paths.base);
+    trace!("Manga Spec: {:?}", paths.manga_spec);
+    trace!("Manga Cover: {:?}", paths.cover_path);
 
-    if args.update {
-        info!("Running in update mode");
-    }
+    let info = read_manga_info(&paths)?;
 
-    let manga_info = read_manga_info(&paths).unwrap();
-
-    let manga = match server.get_manga(&manga_info.name) {
-        Ok(manga) => manga,
+    let manga = match server.get_manga(&info.name) {
+        Ok(manga) => Ok(manga),
         Err(Error::NoMangasWithName(_)) => {
-            server.create_manga(&manga_info, paths.cover_path).unwrap()
+            Ok(server.create_manga(&info, &paths.cover_path)?)
         }
-        Err(e) => panic!("Failed: {:?}", e),
-    };
+        Err(e) => Err(Error::FailedToRetriveManga(Box::new(e))),
+    }?;
 
-    let manga_chapters = server.get_chapters(&manga).unwrap();
+    let manga_chapters = server.get_chapters(&manga)?;
     info!("{} chapters on the server", manga_chapters.len());
-    // println!(
-    //     "{:?}",
-    //     manga_chapters.iter().map(|i| i.index).collect::<Vec<_>>()
-    // );
 
-    let local_chapters = get_local_chapters(&paths.base).unwrap();
+    let local_chapters = get_local_chapters(&paths.base)
+        .ok_or(Error::FailedToGetLocalChapters)?;
     info!("{} chapters locally", local_chapters.len());
-    // println!("Local: {:#?}", local_chapters);
 
     let mut missing_chapters = VecDeque::new();
 
     for local in local_chapters {
-        // missing_chapters.push_back(local);
         let res = manga_chapters.iter().find(|i| i.index == local.index);
         if res.is_none() {
             missing_chapters.push_back(local);
@@ -273,28 +296,129 @@ fn main() {
 
     info!("{} missing chapters", num_missing_chapters);
 
-    if num_missing_chapters <= 0 {
-        warn!("No chapters to process");
-        println!("No chapters to process");
+    Ok(PrepManga {
+        server,
+        paths,
+        manga,
+        info,
+
+        missing_chapters,
+    })
+}
+
+#[derive(Debug)]
+struct MissingChapter {
+    manga_index: usize,
+    chapter_index: usize,
+}
+
+fn main() {
+    env_logger::init();
+
+    let args = Args::parse();
+    println!("Args: {:#?}", args);
+
+    let mut mangas = VecDeque::new();
+
+    let mut handle = |m: Result<PrepManga>| match m {
+        Ok(manga) => {
+            let num_missing = manga.missing_chapters.len();
+            if num_missing > 0 {
+                warn!(
+                    "'{}' is missing {} chapter(s)",
+                    manga.info.name, num_missing
+                );
+                mangas.push_back(manga);
+            } else {
+                debug!("'{}' not missing any chapters", manga.info.name);
+            }
+        }
+        Err(Error::NoMangaSpec(path)) => {
+            error!("{:?} is missing 'manga.json'", path)
+        }
+        Err(Error::NoSeriesInfo(path)) => {
+            error!("{:?} is missing 'series.json'", path)
+        }
+        Err(Error::NoCoverImage(path)) => {
+            error!("{:?} is missing 'cover[.png|.jpg]'", path)
+        }
+        Err(Error::InvalidMangaSpec(path)) => {
+            error!("{:?} is a invalid 'manga.json'", path)
+        }
+        Err(Error::InvalidSeriesInfo(path)) => {
+            error!("{:?} is a invalid 'series.json'", path)
+        }
+        Err(e) => error!("Unknown error: {:?}", e),
+    };
+
+    match args.command {
+        Commands::UploadSingle { endpoint, path } => {
+            let manga = prep_manga(path, endpoint);
+            handle(manga);
+        }
+        Commands::UploadMultiple { endpoint, dir } => {
+            let paths = dir.read_dir().unwrap();
+            for path in paths {
+                let path = path.unwrap();
+                let path = path.path();
+
+                trace!("Looking at {:?}", path);
+                let manga = prep_manga(path, endpoint.clone());
+                handle(manga);
+            }
+        }
+    }
+
+    if mangas.len() <= 0 {
+        println!("Nothing to upload (exiting)");
         return;
     }
 
+    println!("Num mangas to upload: {}", mangas.len());
+    info!("-----------------");
+    for manga in mangas.iter() {
+        info!(
+            "{} at {:?} needs to upload {} chapter(s)",
+            manga.info.name,
+            manga.paths.base,
+            manga.missing_chapters.len()
+        );
+    }
+    info!("-----------------");
+
+    let total_missing_chapters = mangas
+        .iter()
+        .fold(0usize, |sum, val| sum + val.missing_chapters.len());
+    debug!("Total missing chapters: {}", total_missing_chapters);
+
     let mut num_threads = args.num_threads;
-    if num_missing_chapters < num_threads {
-        num_threads = num_missing_chapters;
+    if total_missing_chapters < num_threads {
+        num_threads = total_missing_chapters;
     }
 
     info!("Using {} threads", num_threads);
 
+    let mut missing_chapters = VecDeque::new();
+    for (manga_index, manga) in mangas.iter().enumerate() {
+        for (chapter_index, _) in manga.missing_chapters.iter().enumerate() {
+            missing_chapters.push_back(MissingChapter {
+                manga_index,
+                chapter_index,
+            });
+        }
+    }
+
+    // println!("Chapters: {:#?}", missing_chapters);
+
+    let mangas = Arc::new(RwLock::new(mangas));
     let work_queue = Arc::new(Mutex::new(missing_chapters));
 
     let mut thread_handles = Vec::new();
     for tid in 0..num_threads {
         let work_queue_handle = work_queue.clone();
-        let s = server.clone();
-        let m = manga.clone();
+        let mangas_handle = mangas.clone();
         let handle = std::thread::spawn(move || {
-            worker_thread(tid, work_queue_handle, s, m);
+            worker_thread(tid, mangas_handle, work_queue_handle);
         });
         thread_handles.push(handle);
     }
@@ -306,10 +430,10 @@ fn main() {
             lock.len()
         };
 
-        let num_done = num_missing_chapters - left;
+        let num_done = total_missing_chapters - left;
         println!(
             "Num Done: {}",
-            (num_done as f32 / num_missing_chapters as f32) * 100.0
+            (num_done as f32 / total_missing_chapters as f32) * 100.0
         );
         std::thread::sleep(Duration::from_millis(750));
 
