@@ -31,7 +31,7 @@ pub struct Manga {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Chapter {
     pub id: String,
-    pub index: usize,
+    pub idx: usize,
     pub name: String,
     pub manga: String,
     pub pages: Vec<String>,
@@ -131,6 +131,7 @@ impl Server {
         let form = Form::new()
             .text("name", manga_info.name.clone())
             .text("malUrl", manga_info.mal_url.clone())
+            .text("description", manga_info.desc.clone())
             .file("cover", cover)
             .map_err(Error::FailedToIncludeFileInForm)?;
 
@@ -163,7 +164,7 @@ impl Server {
     pub fn get_chapters(&self, manga: &Manga) -> Result<Vec<Chapter>> {
         let filter = format!("(manga~'{}')", manga.id);
         let url = format!(
-            "{}/api/collections/{}/records?perPage=999&sort=index&filter={}",
+            "{}/api/collections/{}/records?perPage=999&sort=idx&filter={}",
             self.endpoint,
             CHAPTERS_COLLECTION_NAME,
             urlencoding::encode(&filter)
@@ -222,7 +223,7 @@ impl Server {
         let cover = &pages[0];
 
         let mut form = Form::new()
-            .text("index", index.to_string())
+            .text("idx", index.to_string())
             .text("name", name.to_string())
             .text("manga", manga.id.clone())
             .file("cover", cover)

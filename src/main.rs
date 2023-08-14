@@ -41,6 +41,7 @@ struct RawMangaInfo {
 pub struct MangaInfo {
     name: String,
     mal_url: String,
+    desc: String,
 }
 
 #[derive(Parser, Debug)]
@@ -95,9 +96,12 @@ fn read_manga_info(paths: &Paths) -> Result<MangaInfo> {
     let v = serde_json::from_value::<RawMangaInfo>(v.clone())
         .map_err(|_| Error::InvalidSeriesInfo(paths.manga_info.clone()))?;
 
+    let desc = v.description_formatted;
+
     Ok(MangaInfo {
         name: spec.name.unwrap_or(v.name),
         mal_url: spec.mal_url,
+        desc,
     })
 }
 
@@ -286,7 +290,7 @@ where
     let mut missing_chapters = VecDeque::new();
 
     for local in local_chapters {
-        let res = manga_chapters.iter().find(|i| i.index == local.index);
+        let res = manga_chapters.iter().find(|i| i.idx == local.index);
         if res.is_none() {
             missing_chapters.push_back(local);
         }
