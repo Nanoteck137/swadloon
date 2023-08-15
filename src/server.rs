@@ -45,6 +45,18 @@ pub struct Chapter {
     pub collection_name: String,
 }
 
+#[derive(Deserialize, Debug)]
+struct ChapterPage {
+    items: Vec<Chapter>,
+    page: usize,
+    // #[serde(rename = "perPage")]
+    // per_page: usize,
+    #[serde(rename = "totalItems")]
+    total_items: usize,
+    #[serde(rename = "totalPages")]
+    total_pages: usize,
+}
+
 #[derive(Clone, Debug)]
 pub struct Server {
     endpoint: String,
@@ -161,27 +173,20 @@ impl Server {
         }
     }
 
-    pub fn get_chapters(&self, manga: &Manga) -> Result<Vec<Chapter>> {
-        let filter = format!("(manga~'{}')", manga.id);
+    fn get_chapter_page(
+        &self,
+        manga_id: &str,
+        page: usize,
+    ) -> Result<ChapterPage> {
+        let filter = format!("(manga~'{}')", manga_id);
         let url = format!(
-            "{}/api/collections/{}/records?perPage=999&sort=idx&filter={}",
+            "{}/api/collections/{}/records?page={}&perPage=999&sort=idx&filter={}",
             self.endpoint,
             CHAPTERS_COLLECTION_NAME,
+            page,
             urlencoding::encode(&filter)
         );
-        trace!("get_chapters: {}", url);
-
-        #[derive(Deserialize, Debug)]
-        struct Result {
-            items: Vec<Chapter>,
-            // page: usize,
-            // #[serde(rename = "perPage")]
-            // per_page: usize,
-            // #[serde(rename = "totalItems")]
-            // total_items: usize,
-            #[serde(rename = "totalPages")]
-            total_pages: usize,
-        }
+        trace!("get_chapter_page: {}", url);
 
         let res = self
             .client
@@ -193,18 +198,33 @@ impl Server {
 
         if status.is_success() {
             let res = res
-                .json::<Result>()
+                .json::<ChapterPage>()
                 .map_err(Error::FailedToParseResponseJson)?;
 
-            // TODO(patrik): This need to be fixed
-            if res.total_pages > 1 {
-                panic!("More then one page of chapters");
-            }
-
-            Ok(res.items)
+            Ok(res)
         } else {
             Err(Error::RequestFailed(status))
         }
+    }
+
+    pub fn get_chapters(&self, manga: &Manga) -> Result<Vec<Chapter>> {
+        let mut res = Vec::new();
+
+        let first_page = self.get_chapter_page(&manga.id, 1)?;
+        res.reserve(first_page.total_items);
+
+        res.extend_from_slice(&first_page.items);
+
+        let num_pages = first_page.total_pages - 1;
+
+        for page in 0..num_pages {
+            let page = (first_page.page + 1) + page;
+
+            let page = self.get_chapter_page(&manga.id, page)?;
+            res.extend_from_slice(&page.items);
+        }
+
+        Ok(res)
     }
 
     pub fn add_chapter(
