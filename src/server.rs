@@ -178,7 +178,7 @@ impl Server {
         manga_id: &str,
         page: usize,
     ) -> Result<ChapterPage> {
-        let filter = format!("(manga~'{}')", manga_id);
+        let filter = format!("(manga='{}')", manga_id);
         let url = format!(
             "{}/api/collections/{}/records?page={}&perPage=999&sort=idx&filter={}",
             self.endpoint,
@@ -215,13 +215,15 @@ impl Server {
 
         res.extend_from_slice(&first_page.items);
 
-        let num_pages = first_page.total_pages - 1;
+        if first_page.total_pages > 0 {
+            let num_pages = first_page.total_pages - 1;
 
-        for page in 0..num_pages {
-            let page = (first_page.page + 1) + page;
+            for page in 0..num_pages {
+                let page = (first_page.page + 1) + page;
 
-            let page = self.get_chapter_page(&manga.id, page)?;
-            res.extend_from_slice(&page.items);
+                let page = self.get_chapter_page(&manga.id, page)?;
+                res.extend_from_slice(&page.items);
+            }
         }
 
         Ok(res)

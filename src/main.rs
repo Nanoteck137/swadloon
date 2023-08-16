@@ -2,10 +2,15 @@ use std::{
     collections::VecDeque,
     fs::read_to_string,
     path::{Path, PathBuf},
-    process::Command,
     sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
+
+// TODO(patrik):
+//   - Create a verify process
+//     - Check if the chapter dir is empty
+//     - Check the server manga and the local manga should match
+//     - Check server chapters vs local chapters
 
 use clap::{Parser, Subcommand};
 use log::{debug, error, info, trace, warn};
@@ -140,7 +145,7 @@ where
 {
     let paths = std::fs::read_dir(path).ok()?;
 
-    let regex = Regex::new(r"\[(\d+)\]_\w+_([\d.]+)").ok()?;
+    let regex = Regex::new(r"\[(\d+)\]_(Group_([\d.]+)_)*Chapter_([\d.]+)").ok()?;
 
     let mut res = Vec::new();
     for path in paths {
@@ -150,7 +155,14 @@ where
         let filename = path.file_name()?.to_string_lossy();
         if let Some(captures) = regex.captures(&filename) {
             let index = captures[1].parse::<usize>().ok()?;
-            let name = &captures[2];
+            let name = &captures[4];
+            let group = if let Some(m) = captures.get(3) {
+                m.as_str().parse::<usize>().unwrap()
+            } else {
+                1
+            };
+
+            let name = format!("Group {} - {}", group, name);
 
             res.push(LocalChapter {
                 index,
