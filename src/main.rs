@@ -2,6 +2,7 @@ use std::{
     collections::VecDeque,
     fs::read_to_string,
     path::{Path, PathBuf},
+    process::Command,
     sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
@@ -11,6 +12,10 @@ use std::{
 //     - Check if the chapter dir is empty
 //     - Check the server manga and the local manga should match
 //     - Check server chapters vs local chapters
+//   - Automate mangal
+//     - mangas.json for all the mangas we have
+//     - ability to add to mangas.json from a search function
+//     - then download
 
 use clap::{Parser, Subcommand};
 use log::{debug, error, info, trace, warn};
@@ -80,6 +85,13 @@ enum Commands {
 
         dir: PathBuf,
     },
+
+    AddManga {
+        #[arg(short, long)]
+        query: String,
+
+        manga: PathBuf,
+    },
 }
 
 fn read_manga_spec(paths: &Paths) -> Result<MangaSpec> {
@@ -145,7 +157,8 @@ where
 {
     let paths = std::fs::read_dir(path).ok()?;
 
-    let regex = Regex::new(r"\[(\d+)\]_(Group_([\d.]+)_)*Chapter_([\d.]+)").ok()?;
+    let regex =
+        Regex::new(r"\[(\d+)\]_(Group_([\d.]+)_)*Chapter_([\d.]+)").ok()?;
 
     let mut res = Vec::new();
     for path in paths {
@@ -328,6 +341,102 @@ struct MissingChapter {
     chapter_index: usize,
 }
 
+#[derive(Debug)]
+struct MangalManga {
+    name: String,
+}
+
+#[derive(Debug)]
+struct AnilistManga {
+    id: String,
+}
+
+fn extract_info_from_manga(value: &serde_json::Value) -> MangalManga {
+    println!("Val: {:#?}", value);
+    let mangal = value.get("mangal").expect("No mangal");
+    let mangal = mangal.as_object().expect("Expected mangal to be an object");
+
+    let name = mangal.get("name").expect("No name");
+    let name = name.as_str().expect("Name is not a string").to_string();
+
+    MangalManga { name }
+}
+
+fn extract_info_from_anilist(value: &serde_json::Value) -> AnilistManga {
+    let id = value.get("id").expect("No id").to_string();
+
+    AnilistManga { id }
+}
+
+fn query_mangas(query: &str) -> Vec<MangalManga> {
+    // mangal inline -S Mangapill -q "Oshi no Ko" -j -a | jq | nvim -
+    let output = Command::new("mangal")
+        .arg("inline")
+        .arg("-S")
+        .arg("Mangapill")
+        .arg("-q")
+        .arg(query)
+        .arg("-j")
+        .output()
+        .expect("Is 'mangal' installed?");
+
+    println!("Status: {:?}", output.status);
+    println!("Output: {:#?}", output);
+
+    assert_eq!(output.stderr.len(), 0, "FIXME");
+
+    let j =
+        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+    // println!("{:#?}", j);
+
+    let results = j.get("result").expect("No result");
+    assert!(results.is_array(), "'result' should be an array");
+
+    let mut res = Vec::new();
+
+    let results = results.as_array().unwrap();
+    for result in results {
+        // println!("Res: {:#?}", result);
+        let manga = extract_info_from_manga(result);
+        res.push(manga);
+        // println!("Manga: {:#?}", manga_info);
+    }
+
+    res
+}
+
+fn query_anilist(query: &str) -> Vec<AnilistManga> {
+    // mangal inline anilist search --name "the dangers in my heart" | jq | nvim
+
+    let output = Command::new("mangal")
+        .arg("inline")
+        .arg("anilist")
+        .arg("search")
+        .arg("--name")
+        .arg(query)
+        .output()
+        .expect("Is 'mangal' installed?");
+
+    println!("Status: {:?}", output.status);
+    println!("Output: {:#?}", output);
+
+    assert_eq!(output.stderr.len(), 0, "FIXME");
+
+    let j =
+        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+    println!("{:#?}", j);
+
+    let mut res = Vec::new();
+
+    let results = j.as_array().expect("Should be an array");
+    for result in results {
+        let manga = extract_info_from_anilist(result);
+        res.push(manga);
+    }
+
+    res
+}
+
 fn main() {
     env_logger::init();
 
@@ -382,6 +491,13 @@ fn main() {
                 let manga = prep_manga(path, endpoint.clone());
                 handle(manga);
             }
+        }
+
+        Commands::AddManga { query, manga: _ } => {
+            let mangas = query_mangas(&query);
+            let anilist = query_anilist(&query);
+
+            panic!();
         }
     }
 
