@@ -83,6 +83,11 @@ enum Commands {
     AddManga {
         query: String,
     },
+
+    Download {
+        #[arg(short, long)]
+        manga: Option<String>,
+    },
 }
 
 fn read_manga_spec(paths: &Paths) -> Result<MangaSpec> {
@@ -342,6 +347,7 @@ fn main() {
     match args.command {
         Commands::Upload { endpoint, manga } => upload::upload(endpoint, manga),
         Commands::AddManga { query } => manga::add_manga(args.dir, query),
+        Commands::Download { manga } => manga::download(args.dir, manga),
 
         //
         // Commands::AddManga { query, dir } => {
