@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
-    fs::read_to_string,
+    fs::{read_to_string, File},
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, Mutex, RwLock},
@@ -21,12 +22,16 @@ use clap::{Parser, Subcommand};
 use log::{debug, error, info, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use server::{Manga, Server};
 
 use crate::error::{Error, Result};
 
 mod error;
 mod server;
+mod upload;
+mod manga;
+mod util;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MangaSpec {
@@ -57,12 +62,10 @@ pub struct MangaInfo {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t = false)]
-    update: bool,
-
-    /// Number of threads for processing chapters
     #[arg(short, long, default_value_t = 1)]
     num_threads: usize,
+
+    dir: PathBuf,
 
     #[command(subcommand)]
     command: Commands,
@@ -70,27 +73,15 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    UploadSingle {
-        /// The pocketbase endpoint (example: http://localhost:8090)
-        #[arg(short, long)]
+    Upload {
         endpoint: String,
 
-        path: PathBuf,
-    },
-
-    UploadMultiple {
-        /// The pocketbase endpoint (example: http://localhost:8090)
         #[arg(short, long)]
-        endpoint: String,
-
-        dir: PathBuf,
+        manga: Option<String>,
     },
 
     AddManga {
-        #[arg(short, long)]
         query: String,
-
-        manga: PathBuf,
     },
 }
 
@@ -341,101 +332,6 @@ struct MissingChapter {
     chapter_index: usize,
 }
 
-#[derive(Debug)]
-struct MangalManga {
-    name: String,
-}
-
-#[derive(Debug)]
-struct AnilistManga {
-    id: String,
-}
-
-fn extract_info_from_manga(value: &serde_json::Value) -> MangalManga {
-    println!("Val: {:#?}", value);
-    let mangal = value.get("mangal").expect("No mangal");
-    let mangal = mangal.as_object().expect("Expected mangal to be an object");
-
-    let name = mangal.get("name").expect("No name");
-    let name = name.as_str().expect("Name is not a string").to_string();
-
-    MangalManga { name }
-}
-
-fn extract_info_from_anilist(value: &serde_json::Value) -> AnilistManga {
-    let id = value.get("id").expect("No id").to_string();
-
-    AnilistManga { id }
-}
-
-fn query_mangas(query: &str) -> Vec<MangalManga> {
-    // mangal inline -S Mangapill -q "Oshi no Ko" -j -a | jq | nvim -
-    let output = Command::new("mangal")
-        .arg("inline")
-        .arg("-S")
-        .arg("Mangapill")
-        .arg("-q")
-        .arg(query)
-        .arg("-j")
-        .output()
-        .expect("Is 'mangal' installed?");
-
-    println!("Status: {:?}", output.status);
-    println!("Output: {:#?}", output);
-
-    assert_eq!(output.stderr.len(), 0, "FIXME");
-
-    let j =
-        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
-    // println!("{:#?}", j);
-
-    let results = j.get("result").expect("No result");
-    assert!(results.is_array(), "'result' should be an array");
-
-    let mut res = Vec::new();
-
-    let results = results.as_array().unwrap();
-    for result in results {
-        // println!("Res: {:#?}", result);
-        let manga = extract_info_from_manga(result);
-        res.push(manga);
-        // println!("Manga: {:#?}", manga_info);
-    }
-
-    res
-}
-
-fn query_anilist(query: &str) -> Vec<AnilistManga> {
-    // mangal inline anilist search --name "the dangers in my heart" | jq | nvim
-
-    let output = Command::new("mangal")
-        .arg("inline")
-        .arg("anilist")
-        .arg("search")
-        .arg("--name")
-        .arg(query)
-        .output()
-        .expect("Is 'mangal' installed?");
-
-    println!("Status: {:?}", output.status);
-    println!("Output: {:#?}", output);
-
-    assert_eq!(output.stderr.len(), 0, "FIXME");
-
-    let j =
-        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
-    println!("{:#?}", j);
-
-    let mut res = Vec::new();
-
-    let results = j.as_array().expect("Should be an array");
-    for result in results {
-        let manga = extract_info_from_anilist(result);
-        res.push(manga);
-    }
-
-    res
-}
 
 fn main() {
     env_logger::init();
@@ -443,139 +339,96 @@ fn main() {
     let args = Args::parse();
     println!("Args: {:#?}", args);
 
-    let mut mangas = VecDeque::new();
-
-    let mut handle = |m: Result<PrepManga>| match m {
-        Ok(manga) => {
-            let num_missing = manga.missing_chapters.len();
-            if num_missing > 0 {
-                warn!(
-                    "'{}' is missing {} chapter(s)",
-                    manga.info.name, num_missing
-                );
-                mangas.push_back(manga);
-            } else {
-                debug!("'{}' not missing any chapters", manga.info.name);
-            }
-        }
-        Err(Error::NoMangaSpec(path)) => {
-            error!("{:?} is missing 'manga.json'", path)
-        }
-        Err(Error::NoSeriesInfo(path)) => {
-            error!("{:?} is missing 'series.json'", path)
-        }
-        Err(Error::NoCoverImage(path)) => {
-            error!("{:?} is missing 'cover[.png|.jpg]'", path)
-        }
-        Err(Error::InvalidMangaSpec(path)) => {
-            error!("{:?} is a invalid 'manga.json'", path)
-        }
-        Err(Error::InvalidSeriesInfo(path)) => {
-            error!("{:?} is a invalid 'series.json'", path)
-        }
-        Err(e) => error!("Unknown error: {:?}", e),
-    };
-
     match args.command {
-        Commands::UploadSingle { endpoint, path } => {
-            let manga = prep_manga(path, endpoint);
-            handle(manga);
-        }
-        Commands::UploadMultiple { endpoint, dir } => {
-            let paths = dir.read_dir().unwrap();
-            for path in paths {
-                let path = path.unwrap();
-                let path = path.path();
+        Commands::Upload { endpoint, manga } => upload::upload(endpoint, manga),
+        Commands::AddManga { query } => manga::add_manga(args.dir, query),
 
-                trace!("Looking at {:?}", path);
-                let manga = prep_manga(path, endpoint.clone());
-                handle(manga);
-            }
-        }
-
-        Commands::AddManga { query, manga: _ } => {
-            let mangas = query_mangas(&query);
-            let anilist = query_anilist(&query);
-
-            panic!();
-        }
-    }
-
-    if mangas.len() <= 0 {
-        println!("Nothing to upload (exiting)");
-        return;
-    }
-
-    println!("Num mangas to upload: {}", mangas.len());
-    info!("-----------------");
-    for manga in mangas.iter() {
-        info!(
-            "{} at {:?} needs to upload {} chapter(s)",
-            manga.info.name,
-            manga.paths.base,
-            manga.missing_chapters.len()
-        );
-    }
-    info!("-----------------");
-
-    let total_missing_chapters = mangas
-        .iter()
-        .fold(0usize, |sum, val| sum + val.missing_chapters.len());
-    debug!("Total missing chapters: {}", total_missing_chapters);
-
-    let mut num_threads = args.num_threads;
-    if total_missing_chapters < num_threads {
-        num_threads = total_missing_chapters;
-    }
-
-    info!("Using {} threads", num_threads);
-
-    let mut missing_chapters = VecDeque::new();
-    for (manga_index, manga) in mangas.iter().enumerate() {
-        for (chapter_index, _) in manga.missing_chapters.iter().enumerate() {
-            missing_chapters.push_back(MissingChapter {
-                manga_index,
-                chapter_index,
-            });
-        }
-    }
-
-    // println!("Chapters: {:#?}", missing_chapters);
-
-    let mangas = Arc::new(RwLock::new(mangas));
-    let work_queue = Arc::new(Mutex::new(missing_chapters));
-
-    let mut thread_handles = Vec::new();
-    for tid in 0..num_threads {
-        let work_queue_handle = work_queue.clone();
-        let mangas_handle = mangas.clone();
-        let handle = std::thread::spawn(move || {
-            worker_thread(tid, mangas_handle, work_queue_handle);
-        });
-        thread_handles.push(handle);
-    }
-
-    loop {
-        let left = {
-            let lock =
-                work_queue.lock().expect("Failed to get work queue lock");
-            lock.len()
-        };
-
-        let num_done = total_missing_chapters - left;
-        println!(
-            "Num Done: {}",
-            (num_done as f32 / total_missing_chapters as f32) * 100.0
-        );
-        std::thread::sleep(Duration::from_millis(750));
-
-        if left <= 0 {
-            break;
-        }
-    }
-
-    for handle in thread_handles {
-        handle.join().unwrap();
+        //
+        // Commands::AddManga { query, dir } => {
+        //     let mangas = query_mangas(&query);
+        //     let anilist = query_anilist(&query);
+        //
+        //     for (index, manga) in mangas.iter().enumerate() {
+        //         println!("{} - {}", index, manga.0.name);
+        //     }
+        //
+        //     let read_index = |prompt: &str| {
+        //         print!("{}", prompt);
+        //         std::io::stdout().flush().unwrap();
+        //         let mut input = String::new();
+        //         std::io::stdin().read_line(&mut input).unwrap();
+        //
+        //         input.trim().parse::<usize>().unwrap()
+        //     };
+        //
+        //     let index = read_index("Choose one manga: ");
+        //
+        //     let (mangal_manga, mangal_value) = &mangas[index];
+        //     println!("Selected '{}'", mangal_manga.name);
+        //
+        //     for (index, manga) in anilist.iter().enumerate() {
+        //         println!("{} - {}", index, manga.0.title);
+        //     }
+        //
+        //     let anilist_index = read_index("Link manga to anilist id: ");
+        //     let (anilist_manga, anilist_value) = &anilist[anilist_index];
+        //
+        //     println!("Selected: {}", anilist_manga.title);
+        //
+        //     let name = sanitize_name(&mangal_manga.name);
+        //
+        //     #[derive(Serialize, Deserialize, Debug)]
+        //     struct Entry {
+        //         id: String,
+        //         anilist_id: String,
+        //         name: String,
+        //     }
+        //
+        //     let mut manga_json_file = dir.clone();
+        //     manga_json_file.push("mangas.json");
+        //
+        //     let mut entries = if manga_json_file.is_file() {
+        //         let s = read_to_string(&manga_json_file).unwrap();
+        //         serde_json::from_str::<Vec<Entry>>(&s).unwrap()
+        //     } else {
+        //         Vec::new()
+        //     };
+        //
+        //     if let Some(_) = entries.iter().find(|i| i.id == mangal_manga.name)
+        //     {
+        //         println!("Entry already exists");
+        //     } else {
+        //         let new_entry = Entry {
+        //             id: mangal_manga.name.clone(),
+        //             anilist_id: anilist_manga.id.clone(),
+        //             name: name.clone(),
+        //         };
+        //
+        //         entries.push(new_entry);
+        //     }
+        //
+        //     let s = serde_json::to_string_pretty(&entries).unwrap();
+        //     let mut file = File::create(manga_json_file).unwrap();
+        //     file.write_all(s.as_bytes()).unwrap();
+        //
+        //     let mut manga_dir = dir.clone();
+        //     manga_dir.push(name);
+        //
+        //     if !manga_dir.is_dir() {
+        //         std::fs::create_dir(&manga_dir).unwrap();
+        //     }
+        //
+        //     let mut manga_json = manga_dir.clone();
+        //     manga_json.push("manga.json");
+        //
+        //     let mut file = File::create(manga_json).unwrap();
+        //     let j = json!({
+        //         "mangal": mangal_value,
+        //         "anilist": anilist_value,
+        //     });
+        //     let s = serde_json::to_string_pretty(&j).unwrap();
+        //     file.write_all(s.as_bytes()).unwrap();
+        // }
     }
 }
 
