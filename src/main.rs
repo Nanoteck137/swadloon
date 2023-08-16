@@ -32,6 +32,7 @@ mod server;
 mod upload;
 mod manga;
 mod util;
+mod process;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MangaSpec {
@@ -88,6 +89,11 @@ enum Commands {
         #[arg(short, long)]
         manga: Option<String>,
     },
+
+    Process {
+        #[arg(short, long)]
+        manga: Option<String>,
+    }
 }
 
 fn read_manga_spec(paths: &Paths) -> Result<MangaSpec> {
@@ -348,6 +354,7 @@ fn main() {
         Commands::Upload { endpoint, manga } => upload::upload(endpoint, manga),
         Commands::AddManga { query } => manga::add_manga(args.dir, query),
         Commands::Download { manga } => manga::download(args.dir, manga),
+        Commands::Process { manga } => process::process(args.dir, manga),
 
         //
         // Commands::AddManga { query, dir } => {

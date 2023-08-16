@@ -12,10 +12,10 @@ use serde_json::json;
 use crate::util;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct MangaListEntry {
-    id: String,
-    anilist_id: String,
-    name: String,
+pub struct MangaListEntry {
+    pub id: String,
+    pub anilist_id: String,
+    pub name: String,
 }
 
 #[derive(Debug)]
@@ -210,7 +210,7 @@ pub fn add_manga(dir: PathBuf, query: String) {
     file.write_all(s.as_bytes()).unwrap();
 }
 
-fn read_manga_list<P>(dir: P) -> Vec<MangaListEntry>
+pub fn read_manga_list<P>(dir: P) -> Vec<MangaListEntry>
 where
     P: AsRef<Path>,
 {
