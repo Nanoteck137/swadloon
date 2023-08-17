@@ -28,11 +28,11 @@ use server::{Manga, Server};
 use crate::error::{Error, Result};
 
 mod error;
+mod manga;
+mod process;
 mod server;
 mod upload;
-mod manga;
 mod util;
-mod process;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MangaSpec {
@@ -93,7 +93,7 @@ enum Commands {
     Process {
         #[arg(short, long)]
         manga: Option<String>,
-    }
+    },
 }
 
 fn read_manga_spec(paths: &Paths) -> Result<MangaSpec> {
@@ -284,65 +284,64 @@ struct PrepManga {
     missing_chapters: VecDeque<LocalChapter>,
 }
 
-fn prep_manga<P>(path: P, endpoint: String) -> Result<PrepManga>
-where
-    P: AsRef<Path>,
-{
-    let path = path.as_ref();
-
-    let server = server::Server::new(endpoint);
-    let paths = Paths::new(path.to_path_buf())?;
-
-    trace!("Manga Directory: {:?}", paths.base);
-    trace!("Manga Spec: {:?}", paths.manga_spec);
-    trace!("Manga Cover: {:?}", paths.cover_path);
-
-    let info = read_manga_info(&paths)?;
-
-    let manga = match server.get_manga(&info.name) {
-        Ok(manga) => Ok(manga),
-        Err(Error::NoMangasWithName(_)) => {
-            Ok(server.create_manga(&info, &paths.cover_path)?)
-        }
-        Err(e) => Err(Error::FailedToRetriveManga(Box::new(e))),
-    }?;
-
-    let manga_chapters = server.get_chapters(&manga)?;
-    info!("{} chapters on the server", manga_chapters.len());
-
-    let local_chapters = get_local_chapters(&paths.base)
-        .ok_or(Error::FailedToGetLocalChapters)?;
-    info!("{} chapters locally", local_chapters.len());
-
-    let mut missing_chapters = VecDeque::new();
-
-    for local in local_chapters {
-        let res = manga_chapters.iter().find(|i| i.idx == local.index);
-        if res.is_none() {
-            missing_chapters.push_back(local);
-        }
-    }
-
-    let num_missing_chapters = missing_chapters.len();
-
-    info!("{} missing chapters", num_missing_chapters);
-
-    Ok(PrepManga {
-        server,
-        paths,
-        manga,
-        info,
-
-        missing_chapters,
-    })
-}
+// fn prep_manga<P>(path: P, endpoint: String) -> Result<PrepManga>
+// where
+//     P: AsRef<Path>,
+// {
+//     let path = path.as_ref();
+//
+//     let server = server::Server::new(endpoint);
+//     let paths = Paths::new(path.to_path_buf())?;
+//
+//     trace!("Manga Directory: {:?}", paths.base);
+//     trace!("Manga Spec: {:?}", paths.manga_spec);
+//     trace!("Manga Cover: {:?}", paths.cover_path);
+//
+//     let info = read_manga_info(&paths)?;
+//
+//     let manga = match server.get_manga(&info.name) {
+//         Ok(manga) => Ok(manga),
+//         Err(Error::NoMangasWithName(_)) => {
+//             Ok(server.create_manga(&info, &paths.cover_path)?)
+//         }
+//         Err(e) => Err(Error::FailedToRetriveManga(Box::new(e))),
+//     }?;
+//
+//     let manga_chapters = server.get_chapters(&manga)?;
+//     info!("{} chapters on the server", manga_chapters.len());
+//
+//     let local_chapters = get_local_chapters(&paths.base)
+//         .ok_or(Error::FailedToGetLocalChapters)?;
+//     info!("{} chapters locally", local_chapters.len());
+//
+//     let mut missing_chapters = VecDeque::new();
+//
+//     for local in local_chapters {
+//         let res = manga_chapters.iter().find(|i| i.idx == local.index);
+//         if res.is_none() {
+//             missing_chapters.push_back(local);
+//         }
+//     }
+//
+//     let num_missing_chapters = missing_chapters.len();
+//
+//     info!("{} missing chapters", num_missing_chapters);
+//
+//     Ok(PrepManga {
+//         server,
+//         paths,
+//         manga,
+//         info,
+//
+//         missing_chapters,
+//     })
+// }
 
 #[derive(Debug)]
 struct MissingChapter {
     manga_index: usize,
     chapter_index: usize,
 }
-
 
 fn main() {
     env_logger::init();
@@ -351,11 +350,12 @@ fn main() {
     println!("Args: {:#?}", args);
 
     match args.command {
-        Commands::Upload { endpoint, manga } => upload::upload(endpoint, manga),
+        Commands::Upload { endpoint, manga } => {
+            upload::upload(args.dir, endpoint, manga)
+        }
         Commands::AddManga { query } => manga::add_manga(args.dir, query),
         Commands::Download { manga } => manga::download(args.dir, manga),
         Commands::Process { manga } => process::process(args.dir, manga),
-
         //
         // Commands::AddManga { query, dir } => {
         //     let mangas = query_mangas(&query);

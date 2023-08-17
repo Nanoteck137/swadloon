@@ -7,12 +7,38 @@ use std::{
 
 use log::{debug, error, trace, warn};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use zip::ZipArchive;
 
 use crate::manga::{read_manga_list, MangaListEntry};
 
-fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MangaImages {
+    pub banner: String,
+    pub cover_medium: String,
+    pub cover_large: String,
+    pub cover_extra_large: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MangaMetadata {
+    pub name: String,
+
+    pub english_title: String,
+    pub native_title: String,
+    pub romaji_title: String,
+
+    pub anilist_url: String,
+    pub mal_url: String,
+
+    pub description: String,
+    pub is_group: bool,
+
+    pub images: MangaImages,
+}
+
+fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool) {
     let mut metadata_file = dir.clone();
     metadata_file.push("manga.json");
 
@@ -45,8 +71,16 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
         english_title, native_title, romaji_title
     );
 
-    let site_url = anilist.get("siteUrl").expect("No siteUrl");
-    let mal_id = anilist.get("idMal").expect("No idMal");
+    let site_url = anilist
+        .get("siteUrl")
+        .expect("No siteUrl")
+        .as_str()
+        .expect("Expected siteUrl to be an string");
+    let mal_id = anilist
+        .get("idMal")
+        .expect("No idMal")
+        .as_u64()
+        .expect("Expected idMal to be an integer");
     println!("{} - {}", site_url, mal_id);
 
     let desc = anilist.get("description").expect("No description");
@@ -79,7 +113,7 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
     let end_date = parse_date(end_date);
     println!("End Date: {:?}", end_date);
 
-    let process_image = |name: &str, url: &str| {
+    let process_image = |name: &str, url: &str| -> String {
         let url_filename = url.split("/").last().unwrap();
         let url_file_ext = url_filename.split(".").last().unwrap();
 
@@ -87,9 +121,11 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
         out.push(name);
         out.set_extension(url_file_ext);
 
+        let file_name = out.file_name().unwrap().to_str().unwrap().to_string();
+
         if out.is_file() {
             warn!("Skipping downloading: {:?}", out);
-            return;
+            return file_name;
         }
 
         // TODO(patrik): Why do we need the -k
@@ -97,12 +133,14 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
             .arg("-k")
             .arg(url)
             .arg("--output")
-            .arg(out)
+            .arg(&out)
             .status()
             .unwrap();
         if !status.success() {
             panic!("Failed to download image '{}'", url);
         }
+
+        return file_name;
     };
 
     let cover_image = anilist.get("coverImage").expect("No coverImage");
@@ -124,9 +162,9 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
         .as_str()
         .expect("medium should be an string");
 
-    process_image("extra_large", extra_large);
-    process_image("large", large);
-    process_image("medium", medium);
+    let cover_medium = process_image("medium", medium);
+    let cover_large = process_image("large", large);
+    let cover_extra_large = process_image("extra_large", extra_large);
 
     println!(
         "Cover: {} - {} - {} - {}",
@@ -140,21 +178,33 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
         .expect("bannerImage should be an string");
     println!("Banner Image: {}", banner_image);
 
-    process_image("banner_image", banner_image);
+    let banner = process_image("banner_image", banner_image);
 
-    let j = json!({
-        "english_title": english_title,
-        "native_title": native_title,
-        "romaji_title": romaji_title,
+    let images = MangaImages {
+        banner,
+        cover_medium,
+        cover_large,
+        cover_extra_large
+    };
 
-        "site_url": site_url,
-        "mal_id": mal_id,
+    let mal_url = format!("https://myanimelist.net/manga/{}", mal_id);
 
-        "desc": desc,
-        "is_grouped": is_grouped
-    });
+    let metadata = MangaMetadata {
+        name: name.to_string(),
+        english_title: english_title.to_string(),
+        native_title: native_title.to_string(),
+        romaji_title: romaji_title.to_string(),
 
-    let s = serde_json::to_string_pretty(&j).unwrap();
+        anilist_url: site_url.to_string(),
+        mal_url,
+
+        description: desc.to_string(),
+        is_group,
+
+        images,
+    };
+
+    let s = serde_json::to_string_pretty(&metadata).unwrap();
     let mut file = File::create(&out).unwrap();
     file.write_all(s.as_bytes()).unwrap();
 }
@@ -176,7 +226,7 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
 
     let mut chapters = Vec::new();
 
-    let mut is_grouped = false;
+    let mut is_group = false;
 
     let paths = chapters_dir.read_dir().unwrap();
     for path in paths {
@@ -189,7 +239,7 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
             let group =
                 cap.get(3).map(|i| i.as_str()).unwrap_or("0").to_string();
             if group != "0" {
-                is_grouped = true;
+                is_group = true;
             }
             let name = cap[4].to_string();
 
@@ -205,7 +255,7 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
     chapters.sort_by(|l, r| l.index.cmp(&r.index));
 
     println!("Chapters: {:#?}", chapters);
-    println!("IsGrouped: {}", is_grouped);
+    println!("IsGrouped: {}", is_group);
 
     for chapter in chapters {
         let mut out = output_dir.clone();
@@ -257,7 +307,7 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
         file.write_all(s.as_bytes()).unwrap();
     }
 
-    is_grouped
+    is_group
 }
 
 fn process_single<P>(dir: P, entry: &MangaListEntry)
@@ -289,8 +339,8 @@ where
         std::fs::create_dir(&chapter_output_dir).unwrap();
     }
 
-    let is_grouped = process_chapters(&chapter_dir, &chapter_output_dir);
-    process_meta(&entry_dir, &output_dir, is_grouped);
+    let is_group = process_chapters(&chapter_dir, &chapter_output_dir);
+    process_meta(&entry_dir, &output_dir, &entry.id, is_group);
 }
 
 pub fn process(dir: PathBuf, manga: Option<String>) {

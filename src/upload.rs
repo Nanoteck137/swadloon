@@ -1,5 +1,9 @@
 use std::path::PathBuf;
 
+use log::{debug, error};
+
+use crate::{manga::{read_manga_list, MangaListEntry}, server::Server, process::MangaMetadata, error::Error};
+
 // let mut handle = |m: Result<PrepManga>| match m {
 //     Ok(manga) => {
 //         let num_missing = manga.missing_chapters.len();
@@ -31,7 +35,57 @@ use std::path::PathBuf;
 //     Err(e) => error!("Unknown error: {:?}", e),
 // };
 
-pub fn upload(_endpoint: String, _manga: Option<String>) {
+pub fn upload_single(dir: &PathBuf, server: &Server, entry: &MangaListEntry) {
+    debug!("Trying to upload '{}'", entry.id);
+
+    let mut entry_dir = dir.clone();
+    entry_dir.push(&entry.name);
+
+    let mut out_dir = entry_dir.clone();
+    out_dir.push("processed");
+
+    let mut metadata_file = out_dir.clone();
+    metadata_file.push("manga.json"); 
+
+    if !metadata_file.is_file() {
+        // TODO(patrik): Better error message
+        panic!("No 'manga.json' inside processed dir");
+    }
+
+    let s = std::fs::read_to_string(metadata_file).unwrap();
+    let metadata = serde_json::from_str::<MangaMetadata>(&s).unwrap();
+
+    println!("Metadata: {:#?}", metadata);
+
+    let manga = match server.get_manga(&metadata.name) {
+        Ok(manga) => Ok(manga),
+        Err(Error::NoMangasWithName(_)) => {
+            Ok(server.create_manga(out_dir, &metadata).unwrap())
+        }
+        Err(e) => Err(Error::FailedToRetriveManga(Box::new(e))),
+    }.unwrap();
+
+    println!("Manga: {:#?}", manga);
+}
+
+pub fn upload(dir: PathBuf, endpoint: String, manga: Option<String>) {
+    let manga_list = read_manga_list(&dir);
+
+    let server = Server::new(endpoint);
+
+    if let Some(manga) = manga {
+        // NOTE(patrik): Process single manga
+        if let Some(entry) = manga_list.iter().find(|i| i.id == manga) {
+            upload_single(&dir, &server, entry);
+        } else {
+            error!("No manga inside list: {}", manga);
+        }
+    } else {
+        // NOTE(patrik): Upload all the mangas inside the list
+        for manga in manga_list {
+            upload_single(&dir, &server, &manga);
+        }
+    }
 }
 
 // pub fn single(endpoint: String, path: PathBuf) {
