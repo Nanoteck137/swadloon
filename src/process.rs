@@ -159,9 +159,7 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf) {
 }
 
 fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) {
-    // TODO(patrik): Process every chapter inside chapters_dir
     // TODO(patrik): Check for corrupt chapters
-    // TODO(patrik): Maybe write some metadata about the chapter
 
     let regex =
         Regex::new(r"\[(\d+)\]_(Group_([\d.]+)_)*Chapter_([\d.]+)").unwrap();
