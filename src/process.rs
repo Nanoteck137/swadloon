@@ -12,7 +12,7 @@ use zip::ZipArchive;
 
 use crate::manga::{read_manga_list, MangaListEntry};
 
-fn process_meta(dir: &PathBuf, output_dir: &PathBuf) {
+fn process_meta(dir: &PathBuf, output_dir: &PathBuf, is_grouped: bool) {
     let mut metadata_file = dir.clone();
     metadata_file.push("manga.json");
 
@@ -143,14 +143,15 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf) {
     process_image("banner_image", banner_image);
 
     let j = json!({
-        "english_title":english_title ,
-        "native_title":native_title ,
-        "romaji_title":romaji_title ,
+        "english_title": english_title,
+        "native_title": native_title,
+        "romaji_title": romaji_title,
 
-        "site_url":site_url ,
-        "mal_id":mal_id ,
+        "site_url": site_url,
+        "mal_id": mal_id,
 
-        "desc":desc ,
+        "desc": desc,
+        "is_grouped": is_grouped
     });
 
     let s = serde_json::to_string_pretty(&j).unwrap();
@@ -158,7 +159,7 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf) {
     file.write_all(s.as_bytes()).unwrap();
 }
 
-fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) {
+fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
     // TODO(patrik): Check for corrupt chapters
 
     let regex =
@@ -229,27 +230,34 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) {
 
         trace!("Working on {} - {} pages", chapter.index, num_pages);
 
-        // TODO(patrik): If we got error we should report those errors because 
+        // TODO(patrik): If we got error we should report those errors because
         // it's likely a currupt zip file
         zip.extract(out).unwrap();
 
-        let mut pages = zip.file_names().map(|i| {
-            let index = i.split(".").next().unwrap();
-            let index = index.parse::<usize>().unwrap();
-            (index, i)
-        }).collect::<Vec<_>>();
+        let mut pages = zip
+            .file_names()
+            .map(|i| {
+                let index = i.split(".").next().unwrap();
+                let index = index.parse::<usize>().unwrap();
+                (index, i)
+            })
+            .collect::<Vec<_>>();
 
         pages.sort_by(|l, r| l.0.cmp(&r.0));
 
         let pages = pages.iter().map(|i| i.1).collect::<Vec<_>>();
 
         let j = json!({
-            "pages": pages
+            "name": chapter.name,
+            "group": chapter.group,
+            "pages": pages,
         });
         let s = serde_json::to_string_pretty(&j).unwrap();
         let mut file = File::create(chapter_info).unwrap();
         file.write_all(s.as_bytes()).unwrap();
     }
+
+    is_grouped
 }
 
 fn process_single<P>(dir: P, entry: &MangaListEntry)
@@ -281,8 +289,8 @@ where
         std::fs::create_dir(&chapter_output_dir).unwrap();
     }
 
-    process_meta(&entry_dir, &output_dir);
-    process_chapters(&chapter_dir, &chapter_output_dir);
+    let is_grouped = process_chapters(&chapter_dir, &chapter_output_dir);
+    process_meta(&entry_dir, &output_dir, is_grouped);
 }
 
 pub fn process(dir: PathBuf, manga: Option<String>) {
