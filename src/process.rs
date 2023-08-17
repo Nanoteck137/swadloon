@@ -5,7 +5,7 @@ use std::{
     process::Command,
 };
 
-use log::{debug, error, trace, warn};
+use log::{debug, error, trace, info};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use zip::ZipArchive;
@@ -56,27 +56,20 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
     let mut out = output_dir.clone();
     out.push("manga.json");
 
-    trace!(
-        "Processing metadata '{:?}' -> '{:?}'",
-        metadata_file,
-        output_dir
+    info!(
+        "Processing metadata '{}'",
+        name,
     );
 
     let s = std::fs::read_to_string(&metadata_file).unwrap();
     let j = serde_json::from_str::<serde_json::Value>(&s).unwrap();
 
     let anilist = j.get("anilist").expect("No anilist");
-    // println!("{:#?}", anilist);
 
     let title = anilist.get("title").expect("No title");
     let english_title = title.get("english").expect("No english");
     let native_title = title.get("native").expect("No native");
     let romaji_title = title.get("romaji").expect("No romaji");
-
-    println!(
-        "Title: {} - {} - {}",
-        english_title, native_title, romaji_title
-    );
 
     let site_url = anilist
         .get("siteUrl")
@@ -88,10 +81,8 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
         .expect("No idMal")
         .as_u64()
         .expect("Expected idMal to be an integer");
-    println!("{} - {}", site_url, mal_id);
 
     let desc = anilist.get("description").expect("No description");
-    println!("Desc: {:?}", desc);
 
     let parse_date = |date: &serde_json::Value| {
         let year = date.get("year").expect("No year").as_i64().unwrap();
@@ -112,10 +103,12 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
         date
     };
 
+    // FIXME(patrik): Include
     let start_date = anilist.get("startDate").expect("No startDate");
     let start_date = parse_date(start_date);
     println!("Start Date: {:?}", start_date);
 
+    // FIXME(patrik): Include
     let end_date = anilist.get("endDate").expect("No endDate");
     let end_date = parse_date(end_date);
     println!("End Date: {:?}", end_date);
@@ -131,11 +124,11 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
         let file_name = out.file_name().unwrap().to_str().unwrap().to_string();
 
         if out.is_file() {
-            warn!("Skipping downloading: {:?}", out);
+            debug!("Skipping downloading: {:?}", out);
             return file_name;
         }
 
-        // TODO(patrik): Why do we need the -k
+        // FIXME(patrik): Why do we need the -k
         let status = Command::new("curl")
             .arg("-k")
             .arg(url)
@@ -151,6 +144,7 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
     };
 
     let cover_image = anilist.get("coverImage").expect("No coverImage");
+    // TODO(patrik): Include
     let color = cover_image.get("color").expect("No color");
 
     let extra_large = cover_image
@@ -173,17 +167,11 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
     let cover_large = process_image("large", large);
     let cover_extra_large = process_image("extra_large", extra_large);
 
-    println!(
-        "Cover: {} - {} - {} - {}",
-        color, extra_large, large, medium
-    );
-
     let banner_image = anilist
         .get("bannerImage")
         .expect("No bannerImage")
         .as_str()
         .expect("bannerImage should be an string");
-    println!("Banner Image: {}", banner_image);
 
     let banner = process_image("banner_image", banner_image);
 
@@ -261,9 +249,6 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
 
     chapters.sort_by(|l, r| l.index.cmp(&r.index));
 
-    println!("Chapters: {:#?}", chapters);
-    println!("IsGrouped: {}", is_group);
-
     for chapter in chapters {
         let mut out = output_dir.clone();
         out.push(chapter.index.to_string());
@@ -276,7 +261,7 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
         chapter_info.push("info.json");
 
         if chapter_info.is_file() {
-            warn!("Skipping '{}' because 'info.json' exists", chapter.index);
+            debug!("Skipping '{}' because 'info.json' exists", chapter.index);
             continue;
         }
 
@@ -285,7 +270,7 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
 
         let num_pages = zip.len();
 
-        trace!("Working on {} - {} pages", chapter.index, num_pages);
+        debug!("Working on {} - {} pages", chapter.index, num_pages);
 
         // TODO(patrik): If we got error we should report those errors because
         // it's likely a currupt zip file
