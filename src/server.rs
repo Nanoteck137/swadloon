@@ -6,13 +6,11 @@ use reqwest::blocking::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
+use crate::process::{ChapterMetadata, MangaMetadata};
 use crate::MangaInfo;
-use crate::process::{MangaMetadata, ChapterMetadata};
 
 const MANGA_COLLECTION_NAME: &str = "mangas";
 const CHAPTERS_COLLECTION_NAME: &str = "chapters";
-
-
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Manga {
@@ -196,8 +194,7 @@ impl Server {
             .file("coverLarge", cover_large)
             .map_err(Error::FailedToIncludeFileInForm)?
             .file("coverExtraLarge", cover_extra_large)
-            .map_err(Error::FailedToIncludeFileInForm)?
-            ;
+            .map_err(Error::FailedToIncludeFileInForm)?;
 
         let res = self
             .client
@@ -269,8 +266,7 @@ impl Server {
             .file("coverLarge", cover_large)
             .map_err(Error::FailedToIncludeFileInForm)?
             .file("coverExtraLarge", cover_extra_large)
-            .map_err(Error::FailedToIncludeFileInForm)?
-            ;
+            .map_err(Error::FailedToIncludeFileInForm)?;
 
         let res = self
             .client
@@ -399,6 +395,59 @@ impl Server {
         } else {
             debug!(
                 "add_chapter {} (REQUEST FAILED {}): {:?}",
+                metadata.index,
+                status,
+                res.json::<serde_json::Value>().unwrap()
+            );
+            Err(Error::RequestFailed(status))
+        }
+    }
+
+    pub fn update_chapter(
+        &self,
+        chapter: &Chapter,
+        metadata: &ChapterMetadata,
+        pages: &[PathBuf]
+    ) -> Result<Chapter> {
+        let url = format!(
+            "{}/api/collections/{}/records/{}",
+            self.endpoint, CHAPTERS_COLLECTION_NAME, chapter.id
+        );
+        trace!("update_chapter: {}", url);
+        println!("Chapter: {:#?}", chapter);
+
+        let cover = &pages[0];
+
+        let form = Form::new()
+            .text("name", metadata.name.to_string())
+            .text("group", metadata.group.to_string())
+            .file("cover", cover)
+            .unwrap();
+
+        // TODO(patrik): Add force update page flag or something
+        // for page in pages {
+        //     form = form
+        //         .file("pages", page)
+        //         .map_err(Error::FailedToIncludeFileInForm)?;
+        // }
+
+        let res = self
+            .client
+            .patch(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::FailedToSendRequest)?;
+
+        let status = res.status();
+
+        if status.is_success() {
+            let res = res
+                .json::<Chapter>()
+                .map_err(Error::FailedToParseResponseJson)?;
+            Ok(res)
+        } else {
+            debug!(
+                "update_chapter {} (REQUEST FAILED {}): {:?}",
                 metadata.index,
                 status,
                 res.json::<serde_json::Value>().unwrap()

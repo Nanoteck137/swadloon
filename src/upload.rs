@@ -44,6 +44,8 @@ fn upload_chapters(manga: &Manga, server: &Server, dir: PathBuf) {
     // server.add_chapter(manga, index, name, pages);
     let paths = dir.read_dir().unwrap();
 
+    let server_chapters = server.get_chapters(manga).unwrap();
+
     for path in paths {
         let path = path.unwrap();
         let path = path.path();
@@ -65,8 +67,14 @@ fn upload_chapters(manga: &Manga, server: &Server, dir: PathBuf) {
             p
         }).collect::<Vec<_>>();
 
-        info!("Uploading chapter {} to server", metadata.index);
-        server.add_chapter(manga, &metadata, &pages).unwrap();
+        if let Some(chapter) = server_chapters.iter().find(|i| i.idx == metadata.index) {
+            info!("Updating chapter {}", metadata.index);
+            server.update_chapter(chapter, &metadata, &pages).unwrap();
+        } else {
+            info!("Uploading chapter {} to server", metadata.index);
+            server.add_chapter(manga, &metadata, &pages).unwrap();
+        }
+
     }
 }
 
