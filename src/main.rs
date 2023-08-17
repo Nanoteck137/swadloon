@@ -217,12 +217,12 @@ fn worker_thread(
 
         let pages = get_chapter_pages(&chapter.path).unwrap();
 
-        let _ = manga.server.add_chapter(
-            &manga.manga,
-            chapter.index,
-            chapter.name.clone(),
-            &pages,
-        );
+        // let _ = manga.server.add_chapter(
+        //     &manga.manga,
+        //     chapter.index,
+        //     chapter.name.clone(),
+        //     &pages,
+        // );
     }
 }
 

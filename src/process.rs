@@ -38,6 +38,14 @@ pub struct MangaMetadata {
     pub images: MangaImages,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ChapterMetadata {
+    pub index: usize,
+    pub name: String,
+    pub group: usize,
+    pub pages: Vec<String>,
+}
+
 fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool) {
     let mut metadata_file = dir.clone();
     metadata_file.push("manga.json");
@@ -220,8 +228,8 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
         path: PathBuf,
 
         index: usize,
+        group: usize,
         name: String,
-        group: String,
     }
 
     let mut chapters = Vec::new();
@@ -237,8 +245,8 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
         if let Some(cap) = regex.captures(&filename) {
             let index = cap[1].parse::<usize>().unwrap();
             let group =
-                cap.get(3).map(|i| i.as_str()).unwrap_or("0").to_string();
-            if group != "0" {
+                cap.get(3).map(|i| i.as_str().parse::<usize>().unwrap()).unwrap_or(0);
+            if group != 0 {
                 is_group = true;
             }
             let name = cap[4].to_string();
@@ -295,14 +303,20 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
 
         pages.sort_by(|l, r| l.0.cmp(&r.0));
 
-        let pages = pages.iter().map(|i| i.1).collect::<Vec<_>>();
+        let pages = pages.iter().map(|i| i.1.to_string()).collect::<Vec<_>>();
 
-        let j = json!({
-            "name": chapter.name,
-            "group": chapter.group,
-            "pages": pages,
-        });
-        let s = serde_json::to_string_pretty(&j).unwrap();
+        // let j = json!({
+        //     "name": chapter.name,
+        //     "group": chapter.group,
+        //     "pages": pages,
+        // });
+        let metadata = ChapterMetadata {
+            index: chapter.index,
+            name: chapter.name,
+            group: chapter.group,
+            pages,
+        };
+        let s = serde_json::to_string_pretty(&metadata).unwrap();
         let mut file = File::create(chapter_info).unwrap();
         file.write_all(s.as_bytes()).unwrap();
     }

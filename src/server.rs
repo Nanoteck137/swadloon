@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 use crate::MangaInfo;
-use crate::process::MangaMetadata;
+use crate::process::{MangaMetadata, ChapterMetadata};
 
 const MANGA_COLLECTION_NAME: &str = "mangas";
 const CHAPTERS_COLLECTION_NAME: &str = "chapters";
@@ -81,9 +81,6 @@ struct ChapterPage {
     total_pages: usize,
 }
 
-pub fn create_form_from_metadata() {
-}
-
 #[derive(Clone, Debug)]
 pub struct Server {
     endpoint: String,
@@ -154,6 +151,80 @@ impl Server {
         }
     }
 
+    pub fn update_manga<P>(
+        &self,
+        manga: &Manga,
+        dir: P,
+        metadata: &MangaMetadata,
+    ) -> Result<Manga>
+    where
+        P: AsRef<Path>,
+    {
+        let url = format!(
+            "{}/api/collections/{}/records/{}",
+            self.endpoint, MANGA_COLLECTION_NAME, manga.id,
+        );
+        debug!("update_manga (URL): {}", url);
+
+        let out = dir.as_ref().to_path_buf();
+
+        let mut banner = out.clone();
+        banner.push(&metadata.images.banner);
+
+        let mut cover_medium = out.clone();
+        cover_medium.push(&metadata.images.cover_medium);
+
+        let mut cover_large = out.clone();
+        cover_large.push(&metadata.images.cover_large);
+
+        let mut cover_extra_large = out.clone();
+        cover_extra_large.push(&metadata.images.cover_extra_large);
+
+        let form = Form::new()
+            // .text("name", metadata.name.to_string())
+            .text("englishTitle", metadata.english_title.to_string())
+            .text("nativeTitle", metadata.native_title.to_string())
+            .text("romajiTitle", metadata.romaji_title.to_string())
+            .text("malUrl", metadata.mal_url.to_string())
+            .text("anilistUrl", metadata.anilist_url.to_string())
+            .text("description", metadata.description.to_string())
+            .text("isGroup", metadata.is_group.to_string())
+            .file("banner", banner)
+            .map_err(Error::FailedToIncludeFileInForm)?
+            .file("coverMedium", cover_medium)
+            .map_err(Error::FailedToIncludeFileInForm)?
+            .file("coverLarge", cover_large)
+            .map_err(Error::FailedToIncludeFileInForm)?
+            .file("coverExtraLarge", cover_extra_large)
+            .map_err(Error::FailedToIncludeFileInForm)?
+            ;
+
+        let res = self
+            .client
+            .patch(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::FailedToSendRequest)?;
+
+        let status = res.status();
+
+        if status.is_success() {
+            let manga = res
+                .json::<Manga>()
+                .map_err(Error::FailedToParseResponseJson)?;
+
+            Ok(manga)
+        } else {
+            debug!(
+                "create_manga (REQUEST FAILED {}): {:?}",
+                status,
+                res.json::<serde_json::Value>().unwrap()
+            );
+
+            Err(Error::RequestFailed(status))
+        }
+    }
+
     pub fn create_manga<P>(
         &self,
         dir: P,
@@ -167,8 +238,6 @@ impl Server {
             self.endpoint, MANGA_COLLECTION_NAME,
         );
         trace!("create_manga (URL): {}", url);
-
-        create_form_from_metadata();
 
         let out = dir.as_ref().to_path_buf();
 
@@ -288,8 +357,7 @@ impl Server {
     pub fn add_chapter(
         &self,
         manga: &Manga,
-        index: usize,
-        name: String,
+        metadata: &ChapterMetadata,
         pages: &[PathBuf],
     ) -> Result<Chapter> {
         let url = format!(
@@ -301,8 +369,9 @@ impl Server {
         let cover = &pages[0];
 
         let mut form = Form::new()
-            .text("idx", index.to_string())
-            .text("name", name.to_string())
+            .text("idx", metadata.index.to_string())
+            .text("name", metadata.name.to_string())
+            .text("group", metadata.group.to_string())
             .text("manga", manga.id.clone())
             .file("cover", cover)
             .unwrap();
@@ -330,7 +399,7 @@ impl Server {
         } else {
             debug!(
                 "add_chapter {} (REQUEST FAILED {}): {:?}",
-                index,
+                metadata.index,
                 status,
                 res.json::<serde_json::Value>().unwrap()
             );
