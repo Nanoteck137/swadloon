@@ -189,8 +189,6 @@ pub fn add_manga(dir: PathBuf, query: String) {
     let mut file = File::create(manga_json_file).unwrap();
     file.write_all(s.as_bytes()).unwrap();
 
-    // TODO(patrik): Download covers
-
     let mut manga_dir = dir.clone();
     manga_dir.push(name);
 

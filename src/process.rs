@@ -5,7 +5,7 @@ use std::{
     process::Command,
 };
 
-use log::{debug, error, trace, info};
+use log::{debug, error, info, trace};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use zip::ZipArchive;
@@ -32,6 +32,11 @@ pub struct MangaMetadata {
     pub mal_url: String,
 
     pub description: String,
+
+    pub start_date: String,
+    pub end_date: String,
+
+    pub color: String,
     pub is_group: bool,
 
     pub images: MangaImages,
@@ -45,7 +50,12 @@ pub struct ChapterMetadata {
     pub pages: Vec<String>,
 }
 
-fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool) {
+fn process_meta(
+    dir: &PathBuf,
+    output_dir: &PathBuf,
+    name: &str,
+    is_group: bool,
+) {
     let mut metadata_file = dir.clone();
     metadata_file.push("manga.json");
 
@@ -56,10 +66,7 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
     let mut out = output_dir.clone();
     out.push("manga.json");
 
-    info!(
-        "Processing metadata '{}'",
-        name,
-    );
+    info!("Processing metadata '{}'", name,);
 
     let s = std::fs::read_to_string(&metadata_file).unwrap();
     let j = serde_json::from_str::<serde_json::Value>(&s).unwrap();
@@ -85,33 +92,36 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
     let desc = anilist.get("description").expect("No description");
 
     let parse_date = |date: &serde_json::Value| {
-        let year = date.get("year").expect("No year").as_i64().unwrap();
-        let month = date.get("month").expect("No month").as_u64().unwrap();
-        let day = date.get("day").expect("No day").as_u64().unwrap();
+        let year = date
+            .get("year")
+            .expect("No year")
+            .as_u64()
+            .expect("year should be an integer");
+        let month = date
+            .get("month")
+            .expect("No month")
+            .as_u64()
+            .expect("month should be an integer");
+        let day = date
+            .get("day")
+            .expect("No day")
+            .as_u64()
+            .expect("day should be an integer");
 
         let date = if year > 0 && month > 0 && day > 0 {
-            let month: u8 = month.try_into().unwrap();
-            Some(time::Date::from_calendar_date(
-                year.try_into().unwrap(),
-                month.try_into().unwrap(),
-                day.try_into().unwrap(),
-            ))
+            format!("{}-{:02}-{:02}", year, month, day)
         } else {
-            None
+            "".to_string()
         };
 
         date
     };
 
-    // FIXME(patrik): Include
     let start_date = anilist.get("startDate").expect("No startDate");
     let start_date = parse_date(start_date);
-    println!("Start Date: {:?}", start_date);
 
-    // FIXME(patrik): Include
     let end_date = anilist.get("endDate").expect("No endDate");
     let end_date = parse_date(end_date);
-    println!("End Date: {:?}", end_date);
 
     let process_image = |name: &str, url: &str| -> String {
         let url_filename = url.split("/").last().unwrap();
@@ -144,7 +154,6 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
     };
 
     let cover_image = anilist.get("coverImage").expect("No coverImage");
-    // TODO(patrik): Include
     let color = cover_image.get("color").expect("No color");
 
     let extra_large = cover_image
@@ -179,7 +188,7 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
         banner,
         cover_medium,
         cover_large,
-        cover_extra_large
+        cover_extra_large,
     };
 
     let mal_url = format!("https://myanimelist.net/manga/{}", mal_id);
@@ -194,6 +203,11 @@ fn process_meta(dir: &PathBuf, output_dir: &PathBuf, name: &str, is_group: bool)
         mal_url,
 
         description: desc.to_string(),
+
+        start_date,
+        end_date,
+
+        color: color.to_string(),
         is_group,
 
         images,
@@ -231,8 +245,10 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
         let filename = path.file_stem().unwrap().to_string_lossy();
         if let Some(cap) = regex.captures(&filename) {
             let index = cap[1].parse::<usize>().unwrap();
-            let group =
-                cap.get(3).map(|i| i.as_str().parse::<usize>().unwrap()).unwrap_or(0);
+            let group = cap
+                .get(3)
+                .map(|i| i.as_str().parse::<usize>().unwrap())
+                .unwrap_or(0);
             if group != 0 {
                 is_group = true;
             }
@@ -270,7 +286,7 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
 
         let num_pages = zip.len();
 
-        debug!("Working on {} - {} pages", chapter.index, num_pages);
+        info!("Working on {} - {} pages", chapter.index, num_pages);
 
         // TODO(patrik): If we got error we should report those errors because
         // it's likely a currupt zip file

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-// TODO(patrik):
+// TODO(patrik): List
 //   - Create a verify process
 //     - Check if the chapter dir is empty
 //     - Check the server manga and the local manga should match
