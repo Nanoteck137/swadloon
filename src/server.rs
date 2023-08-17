@@ -3,10 +3,9 @@ use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
 use reqwest::blocking::{multipart::Form, Client};
 use reqwest::blocking::{ClientBuilder, Response};
-use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Error, Result, ServerKind};
+use crate::error::{Error, Result};
 use crate::process::{ChapterMetadata, MangaMetadata};
 
 const MANGA_COLLECTION_NAME: &str = "mangas";
@@ -131,32 +130,32 @@ impl Server {
             // total_pages: usize,
         }
 
-        let res = self.client.get(url).send().map_err(|e| {
-            Error::ServerSendRequestFailed(ServerKind::GetManga, e)
-        })?;
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .map_err(Error::ServerSendRequestFailed)?;
 
         let status = res.status();
 
         if status.is_success() {
-            let res = res.json::<Result>().map_err(|e| {
-                Error::ServerResponseParseFailed(ServerKind::GetManga, e)
-            })?;
+            let res = res
+                .json::<Result>()
+                .map_err(Error::ServerResponseParseFailed)?;
 
             if res.total_items > 1 {
-                return Err(Error::ServerWrongItemCount(ServerKind::GetManga));
+                error!("Expected one manga got: {}", res.total_items);
+                return Err(Error::ServerWrongItemCount);
             }
 
             if res.items.len() <= 0 {
-                return Err(Error::ServerNoRecordWithName {
-                    kind: ServerKind::GetManga,
-                    name: name.to_string(),
-                });
+                return Err(Error::ServerNoRecord);
             }
 
             Ok(res.items[0].clone())
         } else {
             print_status_error("get_manga", res);
-            Err(Error::ServerRequestFailed(ServerKind::GetManga, status))
+            Err(Error::ServerRequestFailed)
         }
     }
 
@@ -201,40 +200,42 @@ impl Server {
             .file("banner", banner)
             .map_err(|e| {
                 error!("Failed to include 'banner' in form");
-                Error::ServerFormFileFailed(ServerKind::UpdateManga, e)
+                Error::ServerFormFileFailed(e)
             })?
             .file("coverMedium", cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
-                Error::ServerFormFileFailed(ServerKind::UpdateManga, e)
+                Error::ServerFormFileFailed(e)
             })?
             .file("coverLarge", cover_large)
             .map_err(|e| {
                 error!("Failed to include 'coverLarge' in form");
-                Error::ServerFormFileFailed(ServerKind::UpdateManga, e)
+                Error::ServerFormFileFailed(e)
             })?
             .file("coverExtraLarge", cover_extra_large)
             .map_err(|e| {
                 error!("Failed to include 'coverExtraLarge' in form");
-                Error::ServerFormFileFailed(ServerKind::UpdateManga, e)
+                Error::ServerFormFileFailed(e)
             })?;
 
-        let res =
-            self.client.patch(url).multipart(form).send().map_err(|e| {
-                Error::ServerSendRequestFailed(ServerKind::UpdateManga, e)
-            })?;
+        let res = self
+            .client
+            .patch(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::ServerSendRequestFailed)?;
 
         let status = res.status();
 
         if status.is_success() {
-            let manga = res.json::<Manga>().map_err(|e| {
-                Error::ServerResponseParseFailed(ServerKind::UpdateManga, e)
-            })?;
+            let manga = res
+                .json::<Manga>()
+                .map_err(Error::ServerResponseParseFailed)?;
 
             Ok(manga)
         } else {
             print_status_error("update_manga", res);
-            Err(Error::ServerRequestFailed(ServerKind::UpdateManga, status))
+            Err(Error::ServerRequestFailed)
         }
     }
 
@@ -278,40 +279,42 @@ impl Server {
             .file("banner", banner)
             .map_err(|e| {
                 error!("Failed to include 'banner' in form");
-                Error::ServerFormFileFailed(ServerKind::CreateManga, e)
+                Error::ServerFormFileFailed(e)
             })?
             .file("coverMedium", cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
-                Error::ServerFormFileFailed(ServerKind::CreateManga, e)
+                Error::ServerFormFileFailed(e)
             })?
             .file("coverLarge", cover_large)
             .map_err(|e| {
                 error!("Failed to include 'coverLarge' in form");
-                Error::ServerFormFileFailed(ServerKind::CreateManga, e)
+                Error::ServerFormFileFailed(e)
             })?
             .file("coverExtraLarge", cover_extra_large)
             .map_err(|e| {
                 error!("Failed to include 'coverExtraLarge' in form");
-                Error::ServerFormFileFailed(ServerKind::CreateManga, e)
+                Error::ServerFormFileFailed(e)
             })?;
 
-        let res =
-            self.client.post(url).multipart(form).send().map_err(|e| {
-                Error::ServerSendRequestFailed(ServerKind::CreateManga, e)
-            })?;
+        let res = self
+            .client
+            .post(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::ServerSendRequestFailed)?;
 
         let status = res.status();
 
         if status.is_success() {
-            let manga = res.json::<Manga>().map_err(|e| {
-                Error::ServerResponseParseFailed(ServerKind::CreateManga, e)
-            })?;
+            let manga = res
+                .json::<Manga>()
+                .map_err(Error::ServerResponseParseFailed)?;
 
             Ok(manga)
         } else {
             print_status_error("create_manga", res);
-            Err(Error::RequestFailed(status))
+            Err(Error::ServerRequestFailed)
         }
     }
 
@@ -330,24 +333,23 @@ impl Server {
         );
         trace!("get_chapter_page: {}", url);
 
-        let res = self.client.get(url).send().map_err(|e| {
-            Error::ServerSendRequestFailed(ServerKind::GetChapterPage, e)
-        })?;
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .map_err(Error::ServerSendRequestFailed)?;
 
         let status = res.status();
 
         if status.is_success() {
-            let res = res.json::<ChapterPage>().map_err(|e| {
-                Error::ServerResponseParseFailed(ServerKind::GetChapterPage, e)
-            })?;
+            let res = res
+                .json::<ChapterPage>()
+                .map_err(Error::ServerResponseParseFailed)?;
 
             Ok(res)
         } else {
             print_status_error("get_chapter_page", res);
-            Err(Error::ServerRequestFailed(
-                ServerKind::GetChapterPage,
-                status,
-            ))
+            Err(Error::ServerRequestFailed)
         }
     }
 
@@ -395,31 +397,33 @@ impl Server {
             .file("cover", cover)
             .map_err(|e| {
                 error!("Failed to include 'cover' in form");
-                Error::ServerFormFileFailed(ServerKind::AddChapter, e)
+                Error::ServerFormFileFailed(e)
             })?;
 
         for page in pages {
             form = form.file("pages", page).map_err(|e| {
                 error!("Failed to include 'page' in form");
-                Error::ServerFormFileFailed(ServerKind::AddChapter, e)
+                Error::ServerFormFileFailed(e)
             })?;
         }
 
-        let res =
-            self.client.post(url).multipart(form).send().map_err(|e| {
-                Error::ServerSendRequestFailed(ServerKind::AddChapter, e)
-            })?;
+        let res = self
+            .client
+            .post(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::ServerSendRequestFailed)?;
 
         let status = res.status();
 
         if status.is_success() {
-            let res = res.json::<Chapter>().map_err(|e| {
-                Error::ServerResponseParseFailed(ServerKind::AddChapter, e)
-            })?;
+            let res = res
+                .json::<Chapter>()
+                .map_err(Error::ServerResponseParseFailed)?;
             Ok(res)
         } else {
             print_status_error("add_chapter", res);
-            Err(Error::RequestFailed(status))
+            Err(Error::ServerRequestFailed)
         }
     }
 
@@ -443,7 +447,7 @@ impl Server {
             .file("cover", cover)
             .map_err(|e| {
                 error!("Failed to include 'cover' in form");
-                Error::ServerFormFileFailed(ServerKind::UpdateChapter, e)
+                Error::ServerFormFileFailed(e)
             })?;
 
         // TODO(patrik): Add force update page flag or something
@@ -453,21 +457,23 @@ impl Server {
         //         .map_err(Error::FailedToIncludeFileInForm)?;
         // }
 
-        let res =
-            self.client.patch(url).multipart(form).send().map_err(|e| {
-                Error::ServerSendRequestFailed(ServerKind::UpdateChapter, e)
-            })?;
+        let res = self
+            .client
+            .patch(url)
+            .multipart(form)
+            .send()
+            .map_err(Error::ServerSendRequestFailed)?;
 
         let status = res.status();
 
         if status.is_success() {
-            let res = res.json::<Chapter>().map_err(|e| {
-                Error::ServerResponseParseFailed(ServerKind::UpdateChapter, e)
-            })?;
+            let res = res
+                .json::<Chapter>()
+                .map_err(Error::ServerResponseParseFailed)?;
             Ok(res)
         } else {
             print_status_error("update_chapter", res);
-            Err(Error::ServerRequestFailed(ServerKind::UpdateChapter, status))
+            Err(Error::ServerRequestFailed)
         }
     }
 }

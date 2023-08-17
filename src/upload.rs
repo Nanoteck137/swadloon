@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
-use log::{debug, error, warn, info};
+use log::{debug, error, info, warn};
 
 use crate::{
     error::Error,
     manga::{read_manga_list, MangaListEntry},
-    process::{MangaMetadata, ChapterMetadata},
-    server::{Server, Manga},
+    process::{ChapterMetadata, MangaMetadata},
+    server::{Manga, Server},
 };
 
 fn upload_chapters(manga: &Manga, server: &Server, dir: PathBuf) {
@@ -29,20 +29,25 @@ fn upload_chapters(manga: &Manga, server: &Server, dir: PathBuf) {
         let s = std::fs::read_to_string(metadata_path).unwrap();
         let metadata = serde_json::from_str::<ChapterMetadata>(&s).unwrap();
 
-        let pages = metadata.pages.iter().map(|i| {
-            let mut p = path.clone();
-            p.push(i);
-            p
-        }).collect::<Vec<_>>();
+        let pages = metadata
+            .pages
+            .iter()
+            .map(|i| {
+                let mut p = path.clone();
+                p.push(i);
+                p
+            })
+            .collect::<Vec<_>>();
 
-        if let Some(chapter) = server_chapters.iter().find(|i| i.idx == metadata.index) {
+        if let Some(chapter) =
+            server_chapters.iter().find(|i| i.idx == metadata.index)
+        {
             info!("Updating chapter {}", metadata.index);
             server.update_chapter(chapter, &metadata, &pages).unwrap();
         } else {
             info!("Uploading chapter {} to server", metadata.index);
             server.add_chapter(manga, &metadata, &pages).unwrap();
         }
-
     }
 }
 
@@ -79,16 +84,18 @@ pub fn upload_single(dir: &PathBuf, server: &Server, entry: &MangaListEntry) {
         Ok(manga) => {
             let manga =
                 server.update_manga(&manga, out_dir, &metadata).unwrap();
-            Ok(manga)
+            manga
         }
 
-        Err(Error::NoMangasWithName(_)) => {
-            Ok(server.create_manga(out_dir, &metadata).unwrap())
-        }
+        Err(Error::ServerNoRecord) => server
+            .create_manga(out_dir, &metadata)
+            .expect("Failed to create new manga on the server"),
 
-        Err(e) => Err(Error::FailedToRetriveManga(Box::new(e))),
-    }
-    .unwrap();
+        Err(e) => {
+            error!("Upload failed: {:?}", e);
+            return;
+        }
+    };
 
     println!("Manga: {:#?}", manga);
 
