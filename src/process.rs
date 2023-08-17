@@ -8,6 +8,7 @@ use std::{
 use log::{debug, error, trace, warn};
 use regex::Regex;
 use serde_json::json;
+use zip::ZipArchive;
 
 use crate::manga::{read_manga_list, MangaListEntry};
 
@@ -204,8 +205,53 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) {
 
     chapters.sort_by(|l, r| l.index.cmp(&r.index));
 
-    // println!("Chapters: {:#?}", chapters);
-    // println!("IsGrouped: {}", is_grouped);
+    println!("Chapters: {:#?}", chapters);
+    println!("IsGrouped: {}", is_grouped);
+
+    for chapter in chapters {
+        let mut out = output_dir.clone();
+        out.push(chapter.index.to_string());
+
+        if !out.is_dir() {
+            std::fs::create_dir(&out).unwrap();
+        }
+
+        let mut chapter_info = out.clone();
+        chapter_info.push("info.json");
+
+        if chapter_info.is_file() {
+            warn!("Skipping '{}' because 'info.json' exists", chapter.index);
+            continue;
+        }
+
+        let file = File::open(chapter.path).unwrap();
+        let mut zip = ZipArchive::new(file).unwrap();
+
+        let num_pages = zip.len();
+
+        trace!("Working on {} - {} pages", chapter.index, num_pages);
+
+        // TODO(patrik): If we got error we should report those errors because 
+        // it's likely a currupt zip file
+        zip.extract(out).unwrap();
+
+        let mut pages = zip.file_names().map(|i| {
+            let index = i.split(".").next().unwrap();
+            let index = index.parse::<usize>().unwrap();
+            (index, i)
+        }).collect::<Vec<_>>();
+
+        pages.sort_by(|l, r| l.0.cmp(&r.0));
+
+        let pages = pages.iter().map(|i| i.1).collect::<Vec<_>>();
+
+        let j = json!({
+            "pages": pages
+        });
+        let s = serde_json::to_string_pretty(&j).unwrap();
+        let mut file = File::create(chapter_info).unwrap();
+        file.write_all(s.as_bytes()).unwrap();
+    }
 }
 
 fn process_single<P>(dir: P, entry: &MangaListEntry)
