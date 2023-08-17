@@ -8,7 +8,6 @@ use std::{
 use log::{debug, error, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use zip::ZipArchive;
 
 use crate::manga::{read_manga_list, MangaListEntry};
@@ -305,17 +304,13 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
 
         let pages = pages.iter().map(|i| i.1.to_string()).collect::<Vec<_>>();
 
-        // let j = json!({
-        //     "name": chapter.name,
-        //     "group": chapter.group,
-        //     "pages": pages,
-        // });
         let metadata = ChapterMetadata {
             index: chapter.index,
             name: chapter.name,
             group: chapter.group,
             pages,
         };
+
         let s = serde_json::to_string_pretty(&metadata).unwrap();
         let mut file = File::create(chapter_info).unwrap();
         file.write_all(s.as_bytes()).unwrap();
