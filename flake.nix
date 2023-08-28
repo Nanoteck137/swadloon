@@ -23,9 +23,9 @@
         };
 
         app = rustPlatform.buildRustPackage {
-          pname = "swadloon"; # make this what ever your cargo.toml package.name is
+          pname = "swadloon";
           version = "0.1.0";
-          src = ./.; # the folder with the cargo.toml
+          src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
 
           buildInputs = [
@@ -47,7 +47,6 @@
             openssl
             pkg-config
             rust-analyzer
-            poppler_utils
             
             (rustVersion.override { extensions = [ "rust-src" ]; }) 
           ];
