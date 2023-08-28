@@ -28,7 +28,13 @@
           src = ./.; # the folder with the cargo.toml
           cargoLock.lockFile = ./Cargo.lock;
 
+          buildInputs = [
+            pkgs.openssl
+          ];
+
           nativeBuildInputs = [
+            pkgs.pkg-config
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.Security
           ];
         };
