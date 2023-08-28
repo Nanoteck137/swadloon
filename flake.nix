@@ -14,20 +14,36 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+
+        rustVersion = pkgs.rust-bin.stable.latest.default;
+
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = rustVersion;
+          rustc = rustVersion;
+        };
+
+        app = rustPlatform.buildRustPackage {
+          pname = "swadloon"; # make this what ever your cargo.toml package.name is
+          version = "0.1.0";
+          src = ./.; # the folder with the cargo.toml
+          cargoLock.lockFile = ./Cargo.lock;
+
+          nativeBuildInputs = [
+            pkgs.darwin.apple_sdk.frameworks.Security
+          ];
+        };
       in
-      with pkgs;
       {
-        devShells.default = mkShell {
-          buildInputs = [
+        packages.default = app;
+
+        devShells.default = pkgs.mkShell {
+          buildInputs = with pkgs; [
             openssl
             pkg-config
             rust-analyzer
             poppler_utils
             
-            (rust-bin.stable.latest.default.override {
-              extensions = [ "rust-src" ];
-              targets = [ "x86_64-unknown-linux-gnu" "x86_64-unknown-linux-musl" ];
-            })
+            (rustVersion.override { extensions = [ "rust-src" ]; }) 
           ];
         };
       }
