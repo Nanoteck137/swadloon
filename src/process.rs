@@ -74,9 +74,21 @@ fn process_meta(
     let anilist = j.get("anilist").expect("No anilist");
 
     let title = anilist.get("title").expect("No title");
-    let english_title = title.get("english").expect("No english");
-    let native_title = title.get("native").expect("No native");
-    let romaji_title = title.get("romaji").expect("No romaji");
+    let english_title = title
+        .get("english")
+        .expect("No english")
+        .as_str()
+        .expect("Expected english to be an string");
+    let native_title = title
+        .get("native")
+        .expect("No native")
+        .as_str()
+        .expect("Expected native to be an string");
+    let romaji_title = title
+        .get("romaji")
+        .expect("No romaji")
+        .as_str()
+        .expect("Expected romaji to be an string");
 
     let site_url = anilist
         .get("siteUrl")
@@ -89,7 +101,11 @@ fn process_meta(
         .as_u64()
         .expect("Expected idMal to be an integer");
 
-    let desc = anilist.get("description").expect("No description");
+    let desc = anilist
+        .get("description")
+        .expect("No description")
+        .as_str()
+        .expect("Expected description to be an string");
 
     let parse_date = |date: &serde_json::Value| {
         let year = date
@@ -154,7 +170,11 @@ fn process_meta(
     };
 
     let cover_image = anilist.get("coverImage").expect("No coverImage");
-    let color = cover_image.get("color").expect("No color");
+    let color = cover_image
+        .get("color")
+        .expect("No color")
+        .as_str()
+        .expect("Exptected color to be an string");
 
     let extra_large = cover_image
         .get("extraLarge")
@@ -248,8 +268,8 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
             let group = cap
                 .get(3)
                 .map(|i| i.as_str().parse::<usize>().unwrap())
-                .unwrap_or(0);
-            if group != 0 {
+                .unwrap_or(1);
+            if group != 1 {
                 is_group = true;
             }
             let name = cap[4].to_string();
@@ -348,6 +368,8 @@ where
     if !chapter_output_dir.is_dir() {
         std::fs::create_dir(&chapter_output_dir).unwrap();
     }
+
+    info!("Starting to process: '{}'", entry.id);
 
     let is_group = process_chapters(&chapter_dir, &chapter_output_dir);
     process_meta(&entry_dir, &output_dir, &entry.id, is_group);

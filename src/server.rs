@@ -278,6 +278,9 @@ impl Server {
             .text("malUrl", metadata.mal_url.to_string())
             .text("anilistUrl", metadata.anilist_url.to_string())
             .text("description", metadata.description.to_string())
+            .text("startDate", metadata.start_date.to_string())
+            .text("endDate", metadata.end_date.to_string())
+            .text("color", metadata.color.to_string())
             .text("isGroup", metadata.is_group.to_string())
             .file("banner", banner)
             .map_err(|e| {
