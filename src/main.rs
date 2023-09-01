@@ -65,8 +65,11 @@ fn main() {
         Commands::Upload { endpoint, manga } => {
             upload::upload(args.dir, endpoint, manga)
         }
-        Commands::AddManga { query } => manga::add_manga(args.dir, query),
-        Commands::Download { manga } => manga::download(args.dir, manga),
-        Commands::Process { manga } => process::process(args.dir, manga),
+        // Commands::AddManga { query } => manga::add_manga(args.dir, query),
+        Commands::Download { manga } => manga::download_new(args.dir, manga),
+
+        Commands::AddManga { query } => unimplemented!(),
+        Commands::Process { manga } => unimplemented!(),
+        // Commands::Process { manga } => process::process(args.dir, manga),
     }
 }
