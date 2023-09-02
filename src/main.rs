@@ -31,7 +31,7 @@ enum Commands {
         manga: Option<String>,
     },
 
-    Download {
+    Process {
         #[arg(short, long)]
         manga: Option<String>,
     },
@@ -48,6 +48,6 @@ fn main() {
             upload::upload_new(args.dir, endpoint, manga)
         }
 
-        Commands::Download { manga } => manga::download_new(args.dir, manga),
+        Commands::Process { manga } => manga::process(args.dir, manga),
     }
 }

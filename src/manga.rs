@@ -63,7 +63,7 @@ fn thread_worker(tid: usize, queue: Arc<Mutex<VecDeque<ThreadJob>>>) {
     }
 }
 
-pub fn download_single_new(path: PathBuf) {
+pub fn process_single(path: PathBuf) {
     let mut chapter_json = path.clone();
     chapter_json.push("chapters.json");
 
@@ -192,7 +192,7 @@ pub fn download_single_new(path: PathBuf) {
     }
 }
 
-pub fn download_new(dir: PathBuf, manga: Option<String>) {
+pub fn process(dir: PathBuf, manga: Option<String>) {
     if let Some(manga) = manga {
         // NOTE(patrik): Just download a single entry inside the list
         // if let Some(entry) = manga_list.iter().find(|i| i.id == manga) {
@@ -206,12 +206,8 @@ pub fn download_new(dir: PathBuf, manga: Option<String>) {
             let path = path.path();
 
             if path.is_dir() {
-                download_single_new(path);
+                process_single(path);
             }
         }
-        // NOTE(patrik): Download all mangas in the list
-        // for entry in manga_list {
-        //     download_single(&dir, &entry);
-        // }
     }
 }
