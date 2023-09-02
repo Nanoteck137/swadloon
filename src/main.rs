@@ -31,16 +31,7 @@ enum Commands {
         manga: Option<String>,
     },
 
-    AddManga {
-        query: String,
-    },
-
     Download {
-        #[arg(short, long)]
-        manga: Option<String>,
-    },
-
-    Process {
         #[arg(short, long)]
         manga: Option<String>,
     },
@@ -56,11 +47,7 @@ fn main() {
         Commands::Upload { endpoint, manga } => {
             upload::upload_new(args.dir, endpoint, manga)
         }
-        // Commands::AddManga { query } => manga::add_manga(args.dir, query),
-        Commands::Download { manga } => manga::download_new(args.dir, manga),
 
-        Commands::AddManga { query } => unimplemented!(),
-        Commands::Process { manga } => unimplemented!(),
-        // Commands::Process { manga } => process::process(args.dir, manga),
+        Commands::Download { manga } => manga::download_new(args.dir, manga),
     }
 }
