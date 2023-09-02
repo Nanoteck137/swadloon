@@ -15,7 +15,6 @@ use clap::{Parser, Subcommand};
 mod shared;
 mod error;
 mod manga;
-mod process;
 mod server;
 mod upload;
 mod util;

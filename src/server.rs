@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use log::{debug, error, trace};
 use reqwest::blocking::{multipart::Form, Client};
@@ -6,7 +6,7 @@ use reqwest::blocking::{ClientBuilder, Response};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::process::{ChapterMetadata, MangaMetadata};
+use crate::shared::{ChapterEntry, Metadata, ResolvedImages};
 
 const MANGA_COLLECTION_NAME: &str = "mangas";
 const CHAPTERS_COLLECTION_NAME: &str = "chapters";
@@ -164,7 +164,8 @@ impl Server {
     pub fn update_manga(
         &self,
         manga: &Manga,
-        metadata: &MangaMetadata,
+        metadata: &Metadata,
+        images: &ResolvedImages,
     ) -> Result<Manga> {
         let url = format!(
             "{}/api/collections/{}/records/{}",
@@ -172,35 +173,41 @@ impl Server {
         );
         debug!("update_manga (URL): {}", url);
 
+        // TODO(patrik): Cleanup
+        let mal_url = format!("https://myanimelist.net/manga/{}", metadata.mal_id);
+        let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
+
+        // FIXME(patrik): Use dates from metadata
+        let start_date = "2020-04-02";
+        let end_date = "2020-04-02";
+
         // TODO(patrik): Should we update malId and anilistId?
         let form = Form::new()
-            // .text("name", metadata.name.to_string())
-            .text("englishTitle", metadata.english_title.to_string())
-            .text("englishTitle", metadata.english_title.to_string())
-            .text("nativeTitle", metadata.native_title.to_string())
-            .text("romajiTitle", metadata.romaji_title.to_string())
-            .text("malUrl", metadata.mal_url.to_string())
-            .text("anilistUrl", metadata.anilist_url.to_string())
+            .text("englishTitle", metadata.title.english.to_string())
+            .text("nativeTitle", metadata.title.native.to_string())
+            .text("romajiTitle", metadata.title.romaji.to_string())
+            .text("malUrl", mal_url)
+            .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())
-            .text("startDate", metadata.start_date.to_string())
-            .text("endDate", metadata.end_date.to_string())
-            .text("color", metadata.color.to_string())
-            .file("banner", &metadata.images.banner)
+            .text("startDate", start_date)
+            .text("endDate", end_date)
+            .text("color", metadata.cover_image.color.to_string())
+            .file("banner", &images.banner)
             .map_err(|e| {
                 error!("Failed to include 'banner' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverMedium", &metadata.images.cover_medium)
+            .file("coverMedium", &images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverLarge", &metadata.images.cover_large)
+            .file("coverLarge", &images.cover_large)
             .map_err(|e| {
                 error!("Failed to include 'coverLarge' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverExtraLarge", &metadata.images.cover_extra_large)
+            .file("coverExtraLarge", &images.cover_extra_large)
             .map_err(|e| {
                 error!("Failed to include 'coverExtraLarge' in form");
                 Error::ServerFormFileFailed(e)
@@ -227,41 +234,53 @@ impl Server {
         }
     }
 
-    pub fn create_manga(&self, metadata: &MangaMetadata) -> Result<Manga> {
+    pub fn create_manga(
+        &self,
+        metadata: &Metadata,
+        images: &ResolvedImages,
+    ) -> Result<Manga> {
         let url = format!(
             "{}/api/collections/{}/records",
             self.endpoint, MANGA_COLLECTION_NAME,
         );
         trace!("create_manga (URL): {}", url);
 
+        // TODO(patrik): Cleanup
+        let mal_url = format!("https://myanimelist.net/manga/{}", metadata.mal_id);
+        let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
+
+        // FIXME(patrik): Use dates from metadata
+        let start_date = "2020-04-02";
+        let end_date = "2020-04-02";
+
         let form = Form::new()
             .text("malId", metadata.mal_id.to_string())
-            .text("anilistId", metadata.anilist_id.to_string())
-            .text("englishTitle", metadata.english_title.to_string())
-            .text("nativeTitle", metadata.native_title.to_string())
-            .text("romajiTitle", metadata.romaji_title.to_string())
-            .text("malUrl", metadata.mal_url.to_string())
-            .text("anilistUrl", metadata.anilist_url.to_string())
+            .text("anilistId", metadata.id.to_string())
+            .text("englishTitle", metadata.title.english.to_string())
+            .text("nativeTitle", metadata.title.native.to_string())
+            .text("romajiTitle", metadata.title.romaji.to_string())
+            .text("malUrl", mal_url)
+            .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())
-            .text("startDate", metadata.start_date.to_string())
-            .text("endDate", metadata.end_date.to_string())
-            .text("color", metadata.color.to_string())
-            .file("banner", &metadata.images.banner)
+            .text("startDate", start_date)
+            .text("endDate", end_date)
+            .text("color", metadata.cover_image.color.to_string())
+            .file("banner", &images.banner)
             .map_err(|e| {
                 error!("Failed to include 'banner' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverMedium", &metadata.images.cover_medium)
+            .file("coverMedium", &images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverLarge", &metadata.images.cover_large)
+            .file("coverLarge", &images.cover_large)
             .map_err(|e| {
                 error!("Failed to include 'coverLarge' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverExtraLarge", &metadata.images.cover_extra_large)
+            .file("coverExtraLarge", &images.cover_extra_large)
             .map_err(|e| {
                 error!("Failed to include 'coverExtraLarge' in form");
                 Error::ServerFormFileFailed(e)
@@ -348,7 +367,8 @@ impl Server {
     pub fn add_chapter(
         &self,
         manga: &Manga,
-        metadata: &ChapterMetadata,
+        metadata: &ChapterEntry,
+        cover: PathBuf,
         pages: &[PathBuf],
     ) -> Result<Chapter> {
         let url = format!(
@@ -361,7 +381,7 @@ impl Server {
             .text("idx", metadata.index.to_string())
             .text("name", metadata.name.to_string())
             .text("manga", manga.id.clone())
-            .file("cover", metadata.cover.clone())
+            .file("cover", cover)
             .map_err(|e| {
                 error!("Failed to include 'cover' in form");
                 Error::ServerFormFileFailed(e)
@@ -397,7 +417,8 @@ impl Server {
     pub fn update_chapter(
         &self,
         chapter: &Chapter,
-        metadata: &ChapterMetadata,
+        metadata: &ChapterEntry,
+        cover: PathBuf,
         pages: Option<&[PathBuf]>,
     ) -> Result<Chapter> {
         let url = format!(
@@ -408,7 +429,7 @@ impl Server {
 
         let mut form = Form::new()
             .text("name", metadata.name.to_string())
-            .file("cover", metadata.cover.clone())
+            .file("cover", cover)
             .map_err(|e| {
                 error!("Failed to include 'cover' in form");
                 Error::ServerFormFileFailed(e)

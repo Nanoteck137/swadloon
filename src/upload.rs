@@ -4,9 +4,8 @@ use log::{debug, error};
 
 use crate::{
     error::Error,
-    process::{ChapterMetadata, MangaImages, MangaMetadata},
     server::Server,
-    shared::{Chapters, Metadata},
+    shared::{Chapters, Metadata, ResolvedImages},
 };
 
 pub fn upload_single_new(path: PathBuf, server: &Server) {
@@ -69,30 +68,11 @@ pub fn upload_single_new(path: PathBuf, server: &Server) {
         .filter(|i| i.file_stem().unwrap() == "cover_extra_large")
         .next();
 
-    let new_metadata = MangaMetadata {
-        mal_id: metadata.mal_id,
-        anilist_id: metadata.id,
-
-        english_title: metadata.title.english.clone(),
-        native_title: metadata.title.native.clone(),
-        romaji_title: metadata.title.romaji.clone(),
-
-        anilist_url: format!("https://anilist.co/manga/{}", metadata.id),
-        mal_url: format!("https://myanimelist.net/manga/{}", metadata.mal_id),
-
-        description: metadata.description.clone(),
-
-        start_date: "2020-04-02".to_string(),
-        end_date: "2020-04-02".to_string(),
-
-        color: metadata.cover_image.color,
-
-        images: MangaImages {
-            banner: banner.unwrap().clone(),
-            cover_medium: cover_medium.unwrap().clone(),
-            cover_large: cover_large.unwrap().clone(),
-            cover_extra_large: cover_extra_large.unwrap().clone(),
-        },
+    let images = ResolvedImages {
+        banner: banner.unwrap().clone(),
+        cover_medium: cover_medium.unwrap().clone(),
+        cover_large: cover_large.unwrap().clone(),
+        cover_extra_large: cover_extra_large.unwrap().clone(),
     };
 
     let manga = match server.get_manga(metadata.mal_id) {
@@ -101,7 +81,7 @@ pub fn upload_single_new(path: PathBuf, server: &Server) {
                 "Updating manga {} '{}'",
                 metadata.mal_id, metadata.title.english
             );
-            let manga = server.update_manga(&manga, &new_metadata).unwrap();
+            let manga = server.update_manga(&manga, &metadata, &images).unwrap();
             manga
         }
 
@@ -111,7 +91,7 @@ pub fn upload_single_new(path: PathBuf, server: &Server) {
                 metadata.mal_id, metadata.title.english
             );
             server
-                .create_manga(&new_metadata)
+                .create_manga(&metadata, &images)
                 .expect("Failed to create new manga on the server")
         }
 
@@ -148,20 +128,18 @@ pub fn upload_single_new(path: PathBuf, server: &Server) {
 
         let pages = pages.into_iter().map(|i| i.1).collect::<Vec<_>>();
 
-        let metadata = ChapterMetadata {
-            index: chapter.index,
-            name: chapter.name.clone(),
-            cover: pages[0].clone(),
-        };
+        let cover = pages[0].clone();
 
-        if let Some(chapter) =
+        if let Some(server_chapter) =
             server_chapters.iter().find(|i| i.idx == chapter.index)
         {
-            println!("Updating {:4} '{}'", chapter.idx, chapter.name);
-            server.update_chapter(chapter, &metadata, None).unwrap();
+            println!("Updating {:4} '{}'", chapter.index, chapter.name);
+            server
+                .update_chapter(server_chapter, &chapter, cover, None)
+                .unwrap();
         } else {
             println!("Adding   {:4} '{}'", chapter.index, chapter.name);
-            server.add_chapter(&manga, &metadata, &pages).unwrap();
+            server.add_chapter(&manga, &chapter, cover, &pages).unwrap();
         }
     }
 }
