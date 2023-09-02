@@ -136,60 +136,6 @@ pub fn process_single(path: PathBuf) {
     process_image("cover_medium", &metadata.cover_image.medium);
     process_image("cover_large", &metadata.cover_image.large);
     process_image("cover_extra_large", &metadata.cover_image.extra_large);
-
-    let mut thread_jobs = VecDeque::new();
-
-    for chapter in chapters {
-        let mut chapter_dest = chapter_dest.clone();
-        chapter_dest.push(chapter.index.to_string());
-
-        if chapter_dest.is_dir() {
-            println!("Skipping '{}'", chapter.name);
-            continue;
-        } else {
-            std::fs::create_dir_all(&chapter_dest).unwrap();
-        }
-
-        for (index, page) in chapter.pages.iter().enumerate() {
-            std::io::stdout().flush().unwrap();
-
-            // let last = page.split("/").last().unwrap();
-            // let last = last.split("?").next().unwrap();
-            // let ext = last.split(".").last().unwrap();
-
-            let mut filepath = chapter_dest.clone();
-            filepath.push(index.to_string());
-            // filepath.set_extension(ext);
-
-            thread_jobs.push_back(ThreadJob {
-                referer: chapter.url.clone(),
-                url: page.clone(),
-                dest: filepath,
-            });
-        }
-    }
-
-    println!("Thread Jobs: {}", thread_jobs.len());
-
-    let queue = Arc::new(Mutex::new(thread_jobs));
-
-    const THREAD_COUNT: usize = 4;
-
-    let mut threads = Vec::new();
-
-    for tid in 0..THREAD_COUNT {
-        let queue_handle = queue.clone();
-        let handle = std::thread::spawn(move || {
-            thread_worker(tid, queue_handle);
-        });
-
-        threads.push(handle);
-    }
-
-    for (index, handle) in threads.into_iter().enumerate() {
-        handle.join().unwrap();
-        println!("{} finished", index);
-    }
 }
 
 pub fn process(dir: PathBuf, manga: Option<String>) {
