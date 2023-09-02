@@ -14,15 +14,18 @@ use crate::manga::{read_manga_list, MangaListEntry};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MangaImages {
-    pub banner: String,
-    pub cover_medium: String,
-    pub cover_large: String,
-    pub cover_extra_large: String,
+    pub banner: PathBuf,
+    pub cover_medium: PathBuf,
+    pub cover_large: PathBuf,
+    pub cover_extra_large: PathBuf,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MangaMetadata {
-    pub name: String,
+    #[serde(rename = "malId")]
+    pub mal_id: usize,
+    #[serde(rename = "anilistId")]
+    pub anilist_id: usize,
 
     pub english_title: String,
     pub native_title: String,
@@ -37,7 +40,6 @@ pub struct MangaMetadata {
     pub end_date: String,
 
     pub color: String,
-    pub is_group: bool,
 
     pub images: MangaImages,
 }
@@ -46,8 +48,7 @@ pub struct MangaMetadata {
 pub struct ChapterMetadata {
     pub index: usize,
     pub name: String,
-    pub group: usize,
-    pub pages: Vec<String>,
+    pub cover: PathBuf,
 }
 
 fn process_meta(
@@ -205,37 +206,37 @@ fn process_meta(
     let banner = process_image("banner_image", banner_image);
 
     let images = MangaImages {
-        banner,
-        cover_medium,
-        cover_large,
-        cover_extra_large,
+        banner: PathBuf::new(),
+        cover_medium: PathBuf::new(),
+        cover_large: PathBuf::new(),
+        cover_extra_large: PathBuf::new(),
     };
 
     let mal_url = format!("https://myanimelist.net/manga/{}", mal_id);
 
-    let metadata = MangaMetadata {
-        name: name.to_string(),
-        english_title: english_title.to_string(),
-        native_title: native_title.to_string(),
-        romaji_title: romaji_title.to_string(),
-
-        anilist_url: site_url.to_string(),
-        mal_url,
-
-        description: desc.to_string(),
-
-        start_date,
-        end_date,
-
-        color: color.to_string(),
-        is_group,
-
-        images,
-    };
-
-    let s = serde_json::to_string_pretty(&metadata).unwrap();
-    let mut file = File::create(&out).unwrap();
-    file.write_all(s.as_bytes()).unwrap();
+    // let metadata = MangaMetadata {
+    //     name: name.to_string(),
+    //     english_title: english_title.to_string(),
+    //     native_title: native_title.to_string(),
+    //     romaji_title: romaji_title.to_string(),
+    //
+    //     anilist_url: site_url.to_string(),
+    //     mal_url,
+    //
+    //     description: desc.to_string(),
+    //
+    //     start_date,
+    //     end_date,
+    //
+    //     color: color.to_string(),
+    //     is_group,
+    //
+    //     images,
+    // };
+    //
+    // let s = serde_json::to_string_pretty(&metadata).unwrap();
+    // let mut file = File::create(&out).unwrap();
+    // file.write_all(s.as_bytes()).unwrap();
 }
 
 fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
@@ -325,16 +326,16 @@ fn process_chapters(chapters_dir: &PathBuf, output_dir: &PathBuf) -> bool {
 
         let pages = pages.iter().map(|i| i.1.to_string()).collect::<Vec<_>>();
 
-        let metadata = ChapterMetadata {
-            index: chapter.index,
-            name: chapter.name,
-            group: chapter.group,
-            pages,
-        };
-
-        let s = serde_json::to_string_pretty(&metadata).unwrap();
-        let mut file = File::create(chapter_info).unwrap();
-        file.write_all(s.as_bytes()).unwrap();
+        // let metadata = ChapterMetadata {
+        //     index: chapter.index,
+        //     name: chapter.name,
+        //     group: chapter.group,
+        //     pages,
+        // };
+        //
+        // let s = serde_json::to_string_pretty(&metadata).unwrap();
+        // let mut file = File::create(chapter_info).unwrap();
+        // file.write_all(s.as_bytes()).unwrap();
     }
 
     is_group

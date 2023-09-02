@@ -14,7 +14,11 @@ const CHAPTERS_COLLECTION_NAME: &str = "chapters";
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Manga {
     pub id: String,
-    pub name: String,
+
+    #[serde(rename = "malId")]
+    pub mal_id: usize,
+    #[serde(rename = "anilistId")]
+    pub anilist_id: usize,
 
     #[serde(rename = "englishTitle")]
     pub english_title: String,
@@ -29,8 +33,6 @@ pub struct Manga {
     pub anilist_url: String,
 
     pub description: String,
-    #[serde(rename = "isGroup")]
-    pub is_group: bool,
 
     pub banner: String,
     #[serde(rename = "coverMedium")]
@@ -104,10 +106,10 @@ impl Server {
         Self { endpoint, client }
     }
 
-    pub fn get_manga(&self, name: &str) -> Result<Manga> {
-        debug!("get_manga('{}')", name);
+    pub fn get_manga(&self, mal_id: usize) -> Result<Manga> {
+        debug!("get_manga('{}')", mal_id);
 
-        let filter = format!("(name='{}')", name);
+        let filter = format!("(malId='{}')", mal_id);
 
         let url = format!(
             "{}/api/collections/{}/records?filter={}",
@@ -118,7 +120,7 @@ impl Server {
         );
         trace!("URL: {}", url);
 
-        #[derive(Deserialize, Debug)]
+        #[derive(Deserialize)]
         struct Result {
             items: Vec<Manga>,
             // page: usize,
@@ -159,37 +161,21 @@ impl Server {
         }
     }
 
-    pub fn update_manga<P>(
+    pub fn update_manga(
         &self,
         manga: &Manga,
-        dir: P,
         metadata: &MangaMetadata,
-    ) -> Result<Manga>
-    where
-        P: AsRef<Path>,
-    {
+    ) -> Result<Manga> {
         let url = format!(
             "{}/api/collections/{}/records/{}",
             self.endpoint, MANGA_COLLECTION_NAME, manga.id,
         );
         debug!("update_manga (URL): {}", url);
 
-        let out = dir.as_ref().to_path_buf();
-
-        let mut banner = out.clone();
-        banner.push(&metadata.images.banner);
-
-        let mut cover_medium = out.clone();
-        cover_medium.push(&metadata.images.cover_medium);
-
-        let mut cover_large = out.clone();
-        cover_large.push(&metadata.images.cover_large);
-
-        let mut cover_extra_large = out.clone();
-        cover_extra_large.push(&metadata.images.cover_extra_large);
-
+        // TODO(patrik): Should we update malId and anilistId?
         let form = Form::new()
             // .text("name", metadata.name.to_string())
+            .text("englishTitle", metadata.english_title.to_string())
             .text("englishTitle", metadata.english_title.to_string())
             .text("nativeTitle", metadata.native_title.to_string())
             .text("romajiTitle", metadata.romaji_title.to_string())
@@ -199,23 +185,22 @@ impl Server {
             .text("startDate", metadata.start_date.to_string())
             .text("endDate", metadata.end_date.to_string())
             .text("color", metadata.color.to_string())
-            .text("isGroup", metadata.is_group.to_string())
-            .file("banner", banner)
+            .file("banner", &metadata.images.banner)
             .map_err(|e| {
                 error!("Failed to include 'banner' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverMedium", cover_medium)
+            .file("coverMedium", &metadata.images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverLarge", cover_large)
+            .file("coverLarge", &metadata.images.cover_large)
             .map_err(|e| {
                 error!("Failed to include 'coverLarge' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverExtraLarge", cover_extra_large)
+            .file("coverExtraLarge", &metadata.images.cover_extra_large)
             .map_err(|e| {
                 error!("Failed to include 'coverExtraLarge' in form");
                 Error::ServerFormFileFailed(e)
@@ -242,36 +227,16 @@ impl Server {
         }
     }
 
-    pub fn create_manga<P>(
-        &self,
-        dir: P,
-        metadata: &MangaMetadata,
-    ) -> Result<Manga>
-    where
-        P: AsRef<Path>,
-    {
+    pub fn create_manga(&self, metadata: &MangaMetadata) -> Result<Manga> {
         let url = format!(
             "{}/api/collections/{}/records",
             self.endpoint, MANGA_COLLECTION_NAME,
         );
         trace!("create_manga (URL): {}", url);
 
-        let out = dir.as_ref().to_path_buf();
-
-        let mut banner = out.clone();
-        banner.push(&metadata.images.banner);
-
-        let mut cover_medium = out.clone();
-        cover_medium.push(&metadata.images.cover_medium);
-
-        let mut cover_large = out.clone();
-        cover_large.push(&metadata.images.cover_large);
-
-        let mut cover_extra_large = out.clone();
-        cover_extra_large.push(&metadata.images.cover_extra_large);
-
         let form = Form::new()
-            .text("name", metadata.name.to_string())
+            .text("malId", metadata.mal_id.to_string())
+            .text("anilistId", metadata.anilist_id.to_string())
             .text("englishTitle", metadata.english_title.to_string())
             .text("nativeTitle", metadata.native_title.to_string())
             .text("romajiTitle", metadata.romaji_title.to_string())
@@ -281,23 +246,22 @@ impl Server {
             .text("startDate", metadata.start_date.to_string())
             .text("endDate", metadata.end_date.to_string())
             .text("color", metadata.color.to_string())
-            .text("isGroup", metadata.is_group.to_string())
-            .file("banner", banner)
+            .file("banner", &metadata.images.banner)
             .map_err(|e| {
                 error!("Failed to include 'banner' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverMedium", cover_medium)
+            .file("coverMedium", &metadata.images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverLarge", cover_large)
+            .file("coverLarge", &metadata.images.cover_large)
             .map_err(|e| {
                 error!("Failed to include 'coverLarge' in form");
                 Error::ServerFormFileFailed(e)
             })?
-            .file("coverExtraLarge", cover_extra_large)
+            .file("coverExtraLarge", &metadata.images.cover_extra_large)
             .map_err(|e| {
                 error!("Failed to include 'coverExtraLarge' in form");
                 Error::ServerFormFileFailed(e)
@@ -393,14 +357,11 @@ impl Server {
         );
         trace!("add_chapter: {}", url);
 
-        let cover = &pages[0];
-
         let mut form = Form::new()
             .text("idx", metadata.index.to_string())
             .text("name", metadata.name.to_string())
-            .text("group", metadata.group.to_string())
             .text("manga", manga.id.clone())
-            .file("cover", cover)
+            .file("cover", metadata.cover.clone())
             .map_err(|e| {
                 error!("Failed to include 'cover' in form");
                 Error::ServerFormFileFailed(e)
@@ -437,7 +398,7 @@ impl Server {
         &self,
         chapter: &Chapter,
         metadata: &ChapterMetadata,
-        pages: &[PathBuf],
+        pages: Option<&[PathBuf]>,
     ) -> Result<Chapter> {
         let url = format!(
             "{}/api/collections/{}/records/{}",
@@ -445,23 +406,22 @@ impl Server {
         );
         trace!("update_chapter: {}", url);
 
-        let cover = &pages[0];
-
-        let form = Form::new()
+        let mut form = Form::new()
             .text("name", metadata.name.to_string())
-            .text("group", metadata.group.to_string())
-            .file("cover", cover)
+            .file("cover", metadata.cover.clone())
             .map_err(|e| {
                 error!("Failed to include 'cover' in form");
                 Error::ServerFormFileFailed(e)
             })?;
 
-        // TODO(patrik): Add force update page flag or something
-        // for page in pages {
-        //     form = form
-        //         .file("pages", page)
-        //         .map_err(Error::FailedToIncludeFileInForm)?;
-        // }
+        if let Some(pages) = pages {
+            for (index, page) in pages.iter().enumerate() {
+                form = form.file("pages", page).map_err(|e| {
+                    error!("Failed to include page '{}' in form", index);
+                    Error::ServerFormFileFailed(e)
+                })?;
+            }
+        }
 
         let res = self
             .client
