@@ -56,9 +56,9 @@ pub struct Metadata {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SearchResult {
-    pub id: String,
+    pub id: usize,
     #[serde(rename = "idMal")]
-    pub mal_id: String,
+    pub mal_id: usize,
     pub title: MetadataTitle,
 }
 
