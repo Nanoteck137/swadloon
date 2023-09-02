@@ -6,7 +6,6 @@ use clap::{Parser, Subcommand};
 
 mod shared;
 mod error;
-mod manga;
 mod server;
 mod upload;
 
@@ -30,24 +29,16 @@ enum Commands {
         #[arg(short, long)]
         manga: Option<String>,
     },
-
-    Process {
-        #[arg(short, long)]
-        manga: Option<String>,
-    },
 }
 
 fn main() {
     env_logger::init();
 
     let args = Args::parse();
-    println!("Args: {:#?}", args);
 
     match args.command {
         Commands::Upload { endpoint, manga } => {
             upload::upload_new(args.dir, endpoint, manga)
         }
-
-        Commands::Process { manga } => manga::process(args.dir, manga),
     }
 }
