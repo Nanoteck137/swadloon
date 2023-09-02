@@ -38,7 +38,7 @@ fn main() {
 
     match args.command {
         Commands::Upload { endpoint, manga } => {
-            upload::upload_new(args.dir, endpoint, manga)
+            upload::upload(args.dir, endpoint, manga)
         }
     }
 }

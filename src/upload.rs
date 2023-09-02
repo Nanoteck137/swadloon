@@ -8,7 +8,7 @@ use crate::{
     shared::{Chapters, Metadata, ResolvedImages},
 };
 
-pub fn upload_single_new(path: PathBuf, server: &Server) {
+pub fn upload_single(path: PathBuf, server: &Server) {
     debug!("Upload '{:?}'", path);
 
     let mut chapter_json = path.clone();
@@ -144,7 +144,7 @@ pub fn upload_single_new(path: PathBuf, server: &Server) {
     }
 }
 
-pub fn upload_new(dir: PathBuf, endpoint: String, manga: Option<String>) {
+pub fn upload(dir: PathBuf, endpoint: String, manga: Option<String>) {
     let server = Server::new(endpoint);
     if let Some(_manga) = manga {
         // TODO(patrik): Support
@@ -162,7 +162,7 @@ pub fn upload_new(dir: PathBuf, endpoint: String, manga: Option<String>) {
             let path = path.path();
 
             if path.is_dir() {
-                upload_single_new(path, &server);
+                upload_single(path, &server);
             }
         }
     }
