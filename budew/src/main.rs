@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 // TODO(patrik): List
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
 mod shared;
 mod error;

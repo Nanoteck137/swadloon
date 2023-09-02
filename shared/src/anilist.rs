@@ -1,5 +1,5 @@
 use reqwest::blocking::Client;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -52,6 +52,14 @@ pub struct Metadata {
     pub start_date: MetadataDate,
     #[serde(rename = "endDate")]
     pub end_date: MetadataDate,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SearchResult {
+    id: String,
+    #[serde(rename = "idMal")]
+    mal_id: String,
+    title: MetadataTitle,
 }
 
 // NOTE(patrik): https://anilist.co/graphiql
@@ -157,7 +165,7 @@ pub fn fetch_anilist_metadata(mal_id: usize) -> Metadata {
     res
 }
 
-pub fn search_anilist(query: &str) -> Vec<serde_json::Value> {
+pub fn query(query: &str) -> Vec<SearchResult> {
     let client = Client::new();
 
     let json = json!({
@@ -199,13 +207,13 @@ pub fn search_anilist(query: &str) -> Vec<serde_json::Value> {
 
     let j = res.json::<serde_json::Value>().unwrap();
 
-    j.get("data")
+    let results = j
+        .get("data")
         .unwrap()
         .get("Page")
         .unwrap()
         .get("media")
-        .unwrap()
-        .as_array()
-        .unwrap()
-        .clone()
+        .unwrap();
+
+    serde_json::from_value::<Vec<SearchResult>>(results.clone()).unwrap()
 }

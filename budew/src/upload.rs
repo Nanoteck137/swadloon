@@ -1,12 +1,10 @@
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf};
 
 use log::{debug, error};
+use reqwest::blocking::Client;
 use swadloon::{anilist::Metadata, Chapters};
 
-use crate::{
-    error::Error,
-    server::Server, shared::ResolvedImages,
-};
+use crate::{error::Error, server::Server, shared::ResolvedImages};
 
 pub fn upload_single(path: PathBuf, server: &Server) {
     debug!("Upload '{:?}'", path);
@@ -31,12 +29,12 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         panic!("No 'metadata.json' present inside '{:?}'", path);
     }
 
-    if !images_dir.is_dir() {
-        panic!("No 'images' directory present inside '{:?}'", path);
-    }
-
     if !chapters_dir.is_dir() {
         panic!("No 'chapters' directory present inside '{:?}'", path);
+    }
+
+    if !images_dir.is_dir() {
+        std::fs::create_dir_all(&images_dir).unwrap();
     }
 
     let s = std::fs::read_to_string(chapter_json).unwrap();
@@ -51,28 +49,56 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         .map(|i| i.unwrap().path())
         .collect::<Vec<_>>();
 
-    let banner = images
-        .iter()
-        .filter(|i| i.file_stem().unwrap() == "banner")
-        .next();
-    let cover_medium = images
-        .iter()
-        .filter(|i| i.file_stem().unwrap() == "cover_medium")
-        .next();
-    let cover_large = images
-        .iter()
-        .filter(|i| i.file_stem().unwrap() == "cover_large")
-        .next();
-    let cover_extra_large = images
-        .iter()
-        .filter(|i| i.file_stem().unwrap() == "cover_extra_large")
-        .next();
+    let client = Client::new();
+
+    let process_image = |name: &str, url: &str| -> PathBuf {
+        let has_image = images
+            .iter()
+            .filter(|i| i.file_stem().unwrap() == name)
+            .next();
+
+        if let Some(path) = has_image {
+            println!("Skipping downloading '{}'", name);
+            return path.clone();
+        }
+
+        let mut res = client.get(url).send().unwrap();
+
+        let content_type =
+            res.headers().get("content-type").unwrap().to_str().unwrap();
+        println!("Content Type: {:?}", content_type);
+
+        let ext = match content_type {
+            "image/jpeg" => "jpeg",
+            "image/png" => "png",
+            _ => unimplemented!("Unknown content type: {}", content_type),
+        };
+
+        println!("Ext: {}", ext);
+
+        let mut filepath = images_dir.clone();
+        filepath.push(name);
+        filepath.set_extension(ext);
+
+        let mut file = File::create(&filepath).unwrap();
+        res.copy_to(&mut file).unwrap();
+
+        filepath
+    };
+
+    let banner = process_image("banner", &metadata.banner_image);
+    let cover_medium =
+        process_image("cover_medium", &metadata.cover_image.medium);
+    let cover_large =
+        process_image("cover_large", &metadata.cover_image.large);
+    let cover_extra_large =
+        process_image("cover_extra_large", &metadata.cover_image.extra_large);
 
     let images = ResolvedImages {
-        banner: banner.unwrap().clone(),
-        cover_medium: cover_medium.unwrap().clone(),
-        cover_large: cover_large.unwrap().clone(),
-        cover_extra_large: cover_extra_large.unwrap().clone(),
+        banner,
+        cover_medium,
+        cover_large,
+        cover_extra_large,
     };
 
     let manga = match server.get_manga(metadata.mal_id) {
@@ -81,7 +107,8 @@ pub fn upload_single(path: PathBuf, server: &Server) {
                 "Updating manga {} '{}'",
                 metadata.mal_id, metadata.title.english
             );
-            let manga = server.update_manga(&manga, &metadata, &images).unwrap();
+            let manga =
+                server.update_manga(&manga, &metadata, &images).unwrap();
             manga
         }
 
