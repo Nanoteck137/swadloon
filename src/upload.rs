@@ -1,74 +1,13 @@
 use std::path::PathBuf;
 
 use log::{debug, error};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Error,
     process::{ChapterMetadata, MangaImages, MangaMetadata},
     server::Server,
+    shared::{Chapters, Metadata},
 };
-
-// TODO(patrik): Same as manga.rs
-#[derive(Serialize, Deserialize, Debug)]
-struct ChapterEntry {
-    index: usize,
-    name: String,
-    url: String,
-    pages: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MetadataCoverImage {
-    color: String,
-    medium: String,
-    large: String,
-    #[serde(rename = "extraLarge")]
-    extra_large: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MetadataDate {
-    day: Option<usize>,
-    month: Option<usize>,
-    year: Option<usize>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MetadataTitle {
-    english: String,
-    native: String,
-    romaji: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Metadata {
-    id: usize,
-    #[serde(rename = "idMal")]
-    mal_id: usize,
-    title: MetadataTitle,
-    status: String,
-
-    #[serde(rename = "type")]
-    typ: String,
-    format: String,
-
-    description: String,
-    genres: Vec<String>,
-
-    chapters: Option<usize>,
-    volumes: Option<usize>,
-
-    #[serde(rename = "bannerImage")]
-    banner_image: String,
-    #[serde(rename = "coverImage")]
-    cover_image: MetadataCoverImage,
-
-    #[serde(rename = "startDate")]
-    start_date: MetadataDate,
-    #[serde(rename = "endDate")]
-    end_date: MetadataDate,
-}
 
 pub fn upload_single_new(path: PathBuf, server: &Server) {
     debug!("Upload '{:?}'", path);
@@ -102,7 +41,7 @@ pub fn upload_single_new(path: PathBuf, server: &Server) {
     }
 
     let s = std::fs::read_to_string(chapter_json).unwrap();
-    let chapters = serde_json::from_str::<Vec<ChapterEntry>>(&s).unwrap();
+    let chapters = serde_json::from_str::<Chapters>(&s).unwrap();
 
     let s = std::fs::read_to_string(metadata_json).unwrap();
     let metadata = serde_json::from_str::<Metadata>(&s).unwrap();

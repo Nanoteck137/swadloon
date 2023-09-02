@@ -13,7 +13,7 @@ use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::util;
+use crate::{util, shared::{Chapters, Metadata}};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MangaListEntry {
@@ -284,67 +284,6 @@ pub fn download(dir: PathBuf, manga: Option<String>) {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct ChapterEntry {
-    index: usize,
-    name: String,
-    url: String,
-    pages: Vec<String>,
-}
-
-// TODO(patrik): Same as upload.rs
-#[derive(Serialize, Deserialize, Debug)]
-struct MetadataCoverImage {
-    color: String,
-    medium: String,
-    large: String,
-    #[serde(rename = "extraLarge")]
-    extra_large: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MetadataDate {
-    day: Option<usize>,
-    month: Option<usize>,
-    year: Option<usize>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MetadataTitle {
-    english: String,
-    native: String,
-    romaji: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Metadata {
-    id: usize,
-    #[serde(rename = "idMal")]
-    mal_id: usize,
-    title: MetadataTitle,
-    status: String,
-
-    #[serde(rename = "type")]
-    typ: String,
-    format: String,
-
-    description: String,
-    genres: Vec<String>,
-
-    chapters: Option<usize>,
-    volumes: Option<usize>,
-
-    #[serde(rename = "bannerImage")]
-    banner_image: String,
-    #[serde(rename = "coverImage")]
-    cover_image: MetadataCoverImage,
-
-    #[serde(rename = "startDate")]
-    start_date: MetadataDate,
-    #[serde(rename = "endDate")]
-    end_date: MetadataDate,
-}
-
 struct ThreadJob {
     referer: String,
     url: String,
@@ -414,8 +353,7 @@ pub fn download_single_new(path: PathBuf) {
     std::fs::create_dir_all(&image_dest).unwrap();
 
     let s = std::fs::read_to_string(chapter_json).unwrap();
-    let chapters = serde_json::from_str::<Vec<ChapterEntry>>(&s).unwrap();
-    // println!("{:#?}", j);
+    let chapters = serde_json::from_str::<Chapters>(&s).unwrap();
 
     let s = std::fs::read_to_string(metadata_json).unwrap();
     let metadata = serde_json::from_str::<Metadata>(&s).unwrap();

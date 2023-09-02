@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+mod shared;
 mod error;
 mod manga;
 mod process;
