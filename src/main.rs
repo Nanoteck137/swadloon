@@ -1,14 +1,6 @@
 use std::path::PathBuf;
 
 // TODO(patrik): List
-//   - Create a verify process
-//     - Check if the chapter dir is empty
-//     - Check the server manga and the local manga should match
-//     - Check server chapters vs local chapters
-//   - Automate mangal
-//     - mangas.json for all the mangas we have
-//     - ability to add to mangas.json from a search function
-//     - then download
 
 use clap::{Parser, Subcommand};
 
@@ -17,7 +9,6 @@ mod error;
 mod manga;
 mod server;
 mod upload;
-mod util;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
