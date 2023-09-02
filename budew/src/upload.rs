@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use log::{debug, error};
-use shared::{anilist::Metadata, Chapters};
+use swadloon::{anilist::Metadata, Chapters};
 
 use crate::{
     error::Error,

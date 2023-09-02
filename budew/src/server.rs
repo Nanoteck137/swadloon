@@ -4,8 +4,8 @@ use log::{debug, error, trace};
 use reqwest::blocking::{multipart::Form, Client};
 use reqwest::blocking::{ClientBuilder, Response};
 use serde::{Deserialize, Serialize};
-use shared::ChapterEntry;
-use shared::anilist::Metadata;
+use swadloon::anilist::Metadata;
+use swadloon::ChapterEntry;
 
 use crate::error::{Error, Result};
 use crate::shared::ResolvedImages;
@@ -176,7 +176,8 @@ impl Server {
         debug!("update_manga (URL): {}", url);
 
         // TODO(patrik): Cleanup
-        let mal_url = format!("https://myanimelist.net/manga/{}", metadata.mal_id);
+        let mal_url =
+            format!("https://myanimelist.net/manga/{}", metadata.mal_id);
         let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
 
         // FIXME(patrik): Use dates from metadata
@@ -248,7 +249,8 @@ impl Server {
         trace!("create_manga (URL): {}", url);
 
         // TODO(patrik): Cleanup
-        let mal_url = format!("https://myanimelist.net/manga/{}", metadata.mal_id);
+        let mal_url =
+            format!("https://myanimelist.net/manga/{}", metadata.mal_id);
         let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
 
         // FIXME(patrik): Use dates from metadata
@@ -459,6 +461,7 @@ impl Server {
             let res = res
                 .json::<Chapter>()
                 .map_err(Error::ServerResponseParseFailed)?;
+
             Ok(res)
         } else {
             print_status_error("update_chapter", res);
