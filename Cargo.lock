@@ -141,6 +141,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "budew"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "env_logger",
+ "log",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "shared",
+ "time",
+ "urlencoding",
+ "zip",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1097,6 +1114,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared"
+version = "0.1.0"
+
+[[package]]
 name = "slab"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1128,19 +1149,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 
 [[package]]
-name = "swadloon"
+name = "sunkern"
 version = "0.1.0"
 dependencies = [
- "clap",
- "env_logger",
- "log",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "time",
- "urlencoding",
- "zip",
+ "shared",
 ]
 
 [[package]]

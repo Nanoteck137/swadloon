@@ -22,11 +22,12 @@
           rustc = rustVersion;
         };
 
-        app = rustPlatform.buildRustPackage {
-          pname = "swadloon";
+        buildWorkspaceProj = { name }: rustPlatform.buildRustPackage {
+          pname = name;
           version = "0.1.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
+          buildAndTestSubdir = name;
 
           buildInputs = [
             pkgs.openssl
@@ -38,9 +39,14 @@
             pkgs.darwin.apple_sdk.frameworks.Security
           ];
         };
+
+        budew = buildWorkspaceProj { name = "budew"; };
+        sunkern = buildWorkspaceProj { name = "sunkern"; };
       in
       {
-        packages.default = app;
+        packages.budew = budew;
+        packages.sunkern = sunkern;
+        packages.default = budew;
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
