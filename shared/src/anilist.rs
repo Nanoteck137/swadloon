@@ -56,10 +56,10 @@ pub struct Metadata {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SearchResult {
-    id: String,
+    pub id: String,
     #[serde(rename = "idMal")]
-    mal_id: String,
-    title: MetadataTitle,
+    pub mal_id: String,
+    pub title: MetadataTitle,
 }
 
 // NOTE(patrik): https://anilist.co/graphiql
