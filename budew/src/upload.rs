@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use log::{debug, error};
+use shared::{anilist::Metadata, Chapters};
 
 use crate::{
     error::Error,
-    server::Server,
-    shared::{Chapters, Metadata, ResolvedImages},
+    server::Server, shared::ResolvedImages,
 };
 
 pub fn upload_single(path: PathBuf, server: &Server) {

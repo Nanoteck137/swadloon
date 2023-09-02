@@ -1,14 +1,14 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+use serde::{Serialize, Deserialize};
+
+pub mod anilist;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ChapterEntry {
+    pub index: usize,
+    pub name: String,
+    pub url: String,
+    pub pages: Vec<String>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub type Chapters = Vec<ChapterEntry>;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
