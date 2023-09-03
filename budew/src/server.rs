@@ -197,7 +197,15 @@ impl Server {
                     .unwrap_or(&metadata.title.romaji)
                     .to_string(),
             )
-            .text("nativeTitle", metadata.title.native.to_string())
+            .text(
+                "nativeTitle",
+                metadata
+                    .title
+                    .native
+                    .as_ref()
+                    .unwrap_or(&"".to_string())
+                    .to_string(),
+            )
             .text("romajiTitle", metadata.title.romaji.to_string())
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
@@ -283,7 +291,15 @@ impl Server {
                     .unwrap_or(&metadata.title.romaji)
                     .to_string(),
             )
-            .text("nativeTitle", metadata.title.native.to_string())
+            .text(
+                "nativeTitle",
+                metadata
+                    .title
+                    .native
+                    .as_ref()
+                    .unwrap_or(&"".to_string())
+                    .to_string(),
+            )
             .text("romajiTitle", metadata.title.romaji.to_string())
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
