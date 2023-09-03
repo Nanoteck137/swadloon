@@ -4,7 +4,7 @@ use serde_json::json;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetadataCoverImage {
-    pub color: String,
+    pub color: Option<String>,
     pub medium: String,
     pub large: String,
     #[serde(rename = "extraLarge")]

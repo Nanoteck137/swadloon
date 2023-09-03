@@ -212,7 +212,7 @@ impl Server {
             .text("description", metadata.description.to_string())
             .text("startDate", start_date)
             .text("endDate", end_date)
-            .text("color", metadata.cover_image.color.to_string())
+            .text("color", metadata.cover_image.color.as_ref().unwrap_or(&"#ff00ff".to_string()).to_string())
             .file("coverMedium", &images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
@@ -306,7 +306,15 @@ impl Server {
             .text("description", metadata.description.to_string())
             .text("startDate", start_date)
             .text("endDate", end_date)
-            .text("color", metadata.cover_image.color.to_string())
+            .text(
+                "color",
+                metadata
+                    .cover_image
+                    .color
+                    .as_ref()
+                    .unwrap_or(&"#ff00ff".to_string())
+                    .to_string(),
+            )
             .file("coverMedium", &images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
