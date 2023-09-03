@@ -101,11 +101,11 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         cover_extra_large,
     };
 
-    let manga = match server.get_manga(metadata.mal_id) {
+    let manga = match server.get_manga(metadata.mal_id.unwrap()) {
         Ok(manga) => {
             println!(
                 "Updating manga {} '{}'",
-                metadata.mal_id, metadata.title.english
+                metadata.mal_id.unwrap(), metadata.title.english.as_ref().unwrap()
             );
             let manga =
                 server.update_manga(&manga, &metadata, &images).unwrap();
@@ -115,7 +115,7 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         Err(Error::ServerNoRecord) => {
             println!(
                 "Creating new manga {} '{}'",
-                metadata.mal_id, metadata.title.english
+                metadata.mal_id.unwrap(), metadata.title.english.as_ref().unwrap()
             );
             server
                 .create_manga(&metadata, &images)

@@ -6,8 +6,7 @@ pub mod anilist;
 pub struct ChapterEntry {
     pub index: usize,
     pub name: String,
-    pub url: String,
-    pub pages: Vec<String>,
+    pub page_count: usize,
 }
 
 pub type Chapters = Vec<ChapterEntry>;

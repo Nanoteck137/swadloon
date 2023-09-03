@@ -177,7 +177,7 @@ impl Server {
 
         // TODO(patrik): Cleanup
         let mal_url =
-            format!("https://myanimelist.net/manga/{}", metadata.mal_id);
+            format!("https://myanimelist.net/manga/{}", metadata.mal_id.unwrap());
         let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
 
         // FIXME(patrik): Use dates from metadata
@@ -186,9 +186,9 @@ impl Server {
 
         // TODO(patrik): Should we update malId and anilistId?
         let form = Form::new()
-            .text("englishTitle", metadata.title.english.to_string())
-            .text("nativeTitle", metadata.title.native.to_string())
-            .text("romajiTitle", metadata.title.romaji.to_string())
+            .text("englishTitle", metadata.title.english.as_ref().unwrap().to_string())
+            .text("nativeTitle", metadata.title.native.as_ref().unwrap().to_string())
+            .text("romajiTitle", metadata.title.romaji.as_ref().unwrap().to_string())
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())
@@ -250,7 +250,7 @@ impl Server {
 
         // TODO(patrik): Cleanup
         let mal_url =
-            format!("https://myanimelist.net/manga/{}", metadata.mal_id);
+            format!("https://myanimelist.net/manga/{}", metadata.mal_id.unwrap());
         let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
 
         // FIXME(patrik): Use dates from metadata
@@ -258,11 +258,11 @@ impl Server {
         let end_date = "2020-04-02";
 
         let form = Form::new()
-            .text("malId", metadata.mal_id.to_string())
+            .text("malId", metadata.mal_id.unwrap().to_string())
             .text("anilistId", metadata.id.to_string())
-            .text("englishTitle", metadata.title.english.to_string())
-            .text("nativeTitle", metadata.title.native.to_string())
-            .text("romajiTitle", metadata.title.romaji.to_string())
+            .text("englishTitle", metadata.title.english.as_ref().unwrap().to_string())
+            .text("nativeTitle", metadata.title.native.as_ref().unwrap().to_string())
+            .text("romajiTitle", metadata.title.romaji.as_ref().unwrap().to_string())
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())
