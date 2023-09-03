@@ -20,9 +20,9 @@ pub struct MetadataDate {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetadataTitle {
-    pub english: String,
-    pub native: String,
-    pub romaji: String,
+    pub english: Option<String>,
+    pub native: Option<String>,
+    pub romaji: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
