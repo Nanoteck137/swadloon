@@ -176,8 +176,10 @@ impl Server {
         debug!("update_manga (URL): {}", url);
 
         // TODO(patrik): Cleanup
-        let mal_url =
-            format!("https://myanimelist.net/manga/{}", metadata.mal_id.unwrap());
+        let mal_url = format!(
+            "https://myanimelist.net/manga/{}",
+            metadata.mal_id.unwrap()
+        );
         let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
 
         // FIXME(patrik): Use dates from metadata
@@ -185,21 +187,25 @@ impl Server {
         let end_date = "2020-04-02";
 
         // TODO(patrik): Should we update malId and anilistId?
-        let form = Form::new()
-            .text("englishTitle", metadata.title.english.as_ref().unwrap().to_string())
-            .text("nativeTitle", metadata.title.native.as_ref().unwrap().to_string())
-            .text("romajiTitle", metadata.title.romaji.as_ref().unwrap().to_string())
+        let mut form = Form::new()
+            .text(
+                "englishTitle",
+                metadata.title.english.as_ref().unwrap_or(&metadata.title.romaji).to_string(),
+            )
+            .text(
+                "nativeTitle",
+                metadata.title.native.to_string(),
+            )
+            .text(
+                "romajiTitle",
+                metadata.title.romaji.to_string(),
+            )
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())
             .text("startDate", start_date)
             .text("endDate", end_date)
             .text("color", metadata.cover_image.color.to_string())
-            .file("banner", &images.banner)
-            .map_err(|e| {
-                error!("Failed to include 'banner' in form");
-                Error::ServerFormFileFailed(e)
-            })?
             .file("coverMedium", &images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
@@ -215,6 +221,13 @@ impl Server {
                 error!("Failed to include 'coverExtraLarge' in form");
                 Error::ServerFormFileFailed(e)
             })?;
+
+        if let Some(banner) = &images.banner {
+            form = form.file("banner", &banner).map_err(|e| {
+                error!("Failed to include 'banner' in form");
+                Error::ServerFormFileFailed(e)
+            })?;
+        }
 
         let res = self
             .client
@@ -249,31 +262,37 @@ impl Server {
         trace!("create_manga (URL): {}", url);
 
         // TODO(patrik): Cleanup
-        let mal_url =
-            format!("https://myanimelist.net/manga/{}", metadata.mal_id.unwrap());
+        let mal_url = format!(
+            "https://myanimelist.net/manga/{}",
+            metadata.mal_id.unwrap()
+        );
         let anilist_url = format!("https://anilist.co/manga/{}", metadata.id);
 
         // FIXME(patrik): Use dates from metadata
         let start_date = "2020-04-02";
         let end_date = "2020-04-02";
 
-        let form = Form::new()
+        let mut form = Form::new()
             .text("malId", metadata.mal_id.unwrap().to_string())
             .text("anilistId", metadata.id.to_string())
-            .text("englishTitle", metadata.title.english.as_ref().unwrap().to_string())
-            .text("nativeTitle", metadata.title.native.as_ref().unwrap().to_string())
-            .text("romajiTitle", metadata.title.romaji.as_ref().unwrap().to_string())
+            .text(
+                "englishTitle",
+                metadata.title.english.as_ref().unwrap_or(&metadata.title.romaji).to_string(),
+            )
+            .text(
+                "nativeTitle",
+                metadata.title.native.to_string(),
+            )
+            .text(
+                "romajiTitle",
+                metadata.title.romaji.to_string(),
+            )
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())
             .text("startDate", start_date)
             .text("endDate", end_date)
             .text("color", metadata.cover_image.color.to_string())
-            .file("banner", &images.banner)
-            .map_err(|e| {
-                error!("Failed to include 'banner' in form");
-                Error::ServerFormFileFailed(e)
-            })?
             .file("coverMedium", &images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
@@ -289,6 +308,13 @@ impl Server {
                 error!("Failed to include 'coverExtraLarge' in form");
                 Error::ServerFormFileFailed(e)
             })?;
+
+        if let Some(banner) = &images.banner {
+            form = form.file("banner", &banner).map_err(|e| {
+                error!("Failed to include 'banner' in form");
+                Error::ServerFormFileFailed(e)
+            })?;
+        }
 
         let res = self
             .client

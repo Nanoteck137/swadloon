@@ -86,7 +86,11 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         filepath
     };
 
-    let banner = process_image("banner", &metadata.banner_image);
+    let banner = if let Some(banner_iamge) = &metadata.banner_image {
+        Some(process_image("banner", banner_iamge))
+    } else {
+        None
+    };
     let cover_medium =
         process_image("cover_medium", &metadata.cover_image.medium);
     let cover_large =
@@ -105,7 +109,8 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         Ok(manga) => {
             println!(
                 "Updating manga {} '{}'",
-                metadata.mal_id.unwrap(), metadata.title.english.as_ref().unwrap()
+                metadata.mal_id.unwrap(),
+                metadata.title.english.as_ref().unwrap_or(&metadata.title.romaji)
             );
             let manga =
                 server.update_manga(&manga, &metadata, &images).unwrap();
@@ -115,7 +120,12 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         Err(Error::ServerNoRecord) => {
             println!(
                 "Creating new manga {} '{}'",
-                metadata.mal_id.unwrap(), metadata.title.english.as_ref().unwrap()
+                metadata.mal_id.unwrap(),
+                metadata
+                    .title
+                    .english
+                    .as_ref()
+                    .unwrap_or(&metadata.title.romaji),
             );
             server
                 .create_manga(&metadata, &images)

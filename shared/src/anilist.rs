@@ -21,8 +21,8 @@ pub struct MetadataDate {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetadataTitle {
     pub english: Option<String>,
-    pub native: Option<String>,
-    pub romaji: Option<String>,
+    pub native: String,
+    pub romaji: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -44,7 +44,7 @@ pub struct Metadata {
     pub volumes: Option<usize>,
 
     #[serde(rename = "bannerImage")]
-    pub banner_image: String,
+    pub banner_image: Option<String>,
     #[serde(rename = "coverImage")]
     pub cover_image: MetadataCoverImage,
 
@@ -160,6 +160,7 @@ pub fn fetch_anilist_metadata(mal_id: usize) -> Metadata {
     let j = res.json::<serde_json::Value>().unwrap();
 
     let media = j.get("data").unwrap().get("Media").unwrap();
+    println!("Media: {:#?}", media);
     let res = serde_json::from_value::<Metadata>(media.clone()).unwrap();
 
     res
