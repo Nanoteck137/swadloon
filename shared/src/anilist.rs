@@ -58,7 +58,7 @@ pub struct Metadata {
 pub struct SearchResult {
     pub id: usize,
     #[serde(rename = "idMal")]
-    pub mal_id: usize,
+    pub mal_id: Option<usize>,
     pub title: MetadataTitle,
 }
 
