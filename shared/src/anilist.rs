@@ -208,6 +208,7 @@ pub fn query(query: &str) -> Vec<SearchResult> {
 
     let j = res.json::<serde_json::Value>().unwrap();
 
+    println!("Full: {:#?}", j);
     let results = j
         .get("data")
         .unwrap()
