@@ -190,16 +190,15 @@ impl Server {
         let mut form = Form::new()
             .text(
                 "englishTitle",
-                metadata.title.english.as_ref().unwrap_or(&metadata.title.romaji).to_string(),
+                metadata
+                    .title
+                    .english
+                    .as_ref()
+                    .unwrap_or(&metadata.title.romaji)
+                    .to_string(),
             )
-            .text(
-                "nativeTitle",
-                metadata.title.native.to_string(),
-            )
-            .text(
-                "romajiTitle",
-                metadata.title.romaji.to_string(),
-            )
+            .text("nativeTitle", metadata.title.native.to_string())
+            .text("romajiTitle", metadata.title.romaji.to_string())
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())
@@ -277,16 +276,15 @@ impl Server {
             .text("anilistId", metadata.id.to_string())
             .text(
                 "englishTitle",
-                metadata.title.english.as_ref().unwrap_or(&metadata.title.romaji).to_string(),
+                metadata
+                    .title
+                    .english
+                    .as_ref()
+                    .unwrap_or(&metadata.title.romaji)
+                    .to_string(),
             )
-            .text(
-                "nativeTitle",
-                metadata.title.native.to_string(),
-            )
-            .text(
-                "romajiTitle",
-                metadata.title.romaji.to_string(),
-            )
+            .text("nativeTitle", metadata.title.native.to_string())
+            .text("romajiTitle", metadata.title.romaji.to_string())
             .text("malUrl", mal_url)
             .text("anilistUrl", anilist_url)
             .text("description", metadata.description.to_string())

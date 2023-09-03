@@ -110,7 +110,11 @@ pub fn upload_single(path: PathBuf, server: &Server) {
             println!(
                 "Updating manga {} '{}'",
                 metadata.mal_id.unwrap(),
-                metadata.title.english.as_ref().unwrap_or(&metadata.title.romaji)
+                metadata
+                    .title
+                    .english
+                    .as_ref()
+                    .unwrap_or(&metadata.title.romaji)
             );
             let manga =
                 server.update_manga(&manga, &metadata, &images).unwrap();
