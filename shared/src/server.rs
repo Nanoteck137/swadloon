@@ -4,11 +4,11 @@ use log::{debug, error, trace};
 use reqwest::blocking::{multipart::Form, Client};
 use reqwest::blocking::{ClientBuilder, Response};
 use serde::{Deserialize, Serialize};
-use swadloon::anilist::Metadata;
-use swadloon::ChapterEntry;
 
+use crate::{ChapterEntry, ResolvedImages};
+
+use crate::anilist::Metadata;
 use crate::error::{Error, Result};
-use crate::shared::ResolvedImages;
 
 const MANGA_COLLECTION_NAME: &str = "mangas";
 const CHAPTERS_COLLECTION_NAME: &str = "chapters";

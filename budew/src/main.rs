@@ -4,9 +4,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-mod shared;
 mod error;
-mod server;
 mod upload;
 
 #[derive(Parser, Debug)]

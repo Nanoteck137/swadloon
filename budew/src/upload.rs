@@ -2,9 +2,9 @@ use std::{fs::File, path::PathBuf};
 
 use log::{debug, error};
 use reqwest::blocking::Client;
-use swadloon::{anilist::Metadata, Chapters};
+use swadloon::{anilist::Metadata, Chapters, server::Server, ResolvedImages};
 
-use crate::{error::Error, server::Server, shared::ResolvedImages};
+use crate::error::Error;
 
 pub fn upload_single(path: PathBuf, server: &Server) {
     debug!("Upload '{:?}'", path);
@@ -121,7 +121,7 @@ pub fn upload_single(path: PathBuf, server: &Server) {
             manga
         }
 
-        Err(Error::ServerNoRecord) => {
+        Err(swadloon::Error::ServerNoRecord) => {
             println!(
                 "Creating new manga {} '{}'",
                 metadata.mal_id.unwrap(),
