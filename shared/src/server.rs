@@ -212,7 +212,15 @@ impl Server {
             .text("description", metadata.description.to_string())
             .text("startDate", start_date)
             .text("endDate", end_date)
-            .text("color", metadata.cover_image.color.as_ref().unwrap_or(&"#ff00ff".to_string()).to_string())
+            .text(
+                "color",
+                metadata
+                    .cover_image
+                    .color
+                    .as_ref()
+                    .unwrap_or(&"#ff00ff".to_string())
+                    .to_string(),
+            )
             .file("coverMedium", &images.cover_medium)
             .map_err(|e| {
                 error!("Failed to include 'coverMedium' in form");
@@ -478,6 +486,15 @@ impl Server {
             self.endpoint, CHAPTERS_COLLECTION_NAME, chapter.id
         );
         trace!("update_chapter: {}", url);
+
+        // Clear out old pages so we can update with new ones
+        if pages.is_some() {
+            let value = serde_json::json!({
+                "pages": null
+            });
+            // TODO(patrik): Check for errors
+            self.client.patch(&url).json(&value).send().unwrap();
+        }
 
         let mut form = Form::new()
             .text("name", metadata.name.to_string())
