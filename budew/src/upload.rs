@@ -2,11 +2,11 @@ use std::{fs::File, path::PathBuf};
 
 use log::{debug, error};
 use reqwest::blocking::Client;
-use swadloon::{anilist::Metadata, Chapters, server::Server, ResolvedImages};
+use swadloon::{anilist::Metadata, server::Server, Chapters, ResolvedImages};
 
 use crate::error::Error;
 
-pub fn upload_single(path: PathBuf, server: &Server) {
+pub fn upload_single(path: PathBuf, server: &Server, full_update: bool) {
     debug!("Upload '{:?}'", path);
 
     let mut chapter_json = path.clone();
@@ -176,7 +176,12 @@ pub fn upload_single(path: PathBuf, server: &Server) {
         {
             println!("Updating {:4} '{}'", chapter.index, chapter.name);
             server
-                .update_chapter(server_chapter, &chapter, cover, None)
+                .update_chapter(
+                    server_chapter,
+                    &chapter,
+                    cover,
+                    if full_update { Some(&pages) } else { None },
+                )
                 .unwrap();
         } else {
             println!("Adding   {:4} '{}'", chapter.index, chapter.name);
@@ -185,26 +190,27 @@ pub fn upload_single(path: PathBuf, server: &Server) {
     }
 }
 
-pub fn upload(dir: PathBuf, endpoint: String, manga: Option<String>) {
+pub fn upload(dir: PathBuf, endpoint: String, full_update: bool) {
     let server = Server::new(endpoint);
-    if let Some(_manga) = manga {
-        // TODO(patrik): Support
-        unimplemented!("Uploading single manga in not supported right now");
 
-        // NOTE(patrik): Just download a single entry inside the list
-        // if let Some(entry) = manga_list.iter().find(|i| i.id == manga) {
-        //     download_single(&dir, entry);
-        // } else {
-        //     error!("'{}' is not inside the manga list", manga);
-        // }
-    } else {
-        for path in dir.read_dir().unwrap() {
-            let path = path.unwrap();
-            let path = path.path();
+    let has_metadata = {
+        let mut path = dir.clone();
+        path.push("metadata.json");
 
-            if path.is_dir() {
-                upload_single(path, &server);
-            }
+        path.exists() && path.is_file()
+    };
+
+    if has_metadata {
+        upload_single(dir, &server, full_update);
+        return;
+    }
+
+    for path in dir.read_dir().unwrap() {
+        let path = path.unwrap();
+        let path = path.path();
+
+        if path.is_dir() {
+            upload_single(path, &server, full_update);
         }
     }
 }
