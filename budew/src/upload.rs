@@ -2,7 +2,11 @@ use std::{fs::File, path::PathBuf};
 
 use log::{debug, error};
 use reqwest::blocking::Client;
-use swadloon::{anilist::Metadata, server::Server, Chapters, ResolvedImages};
+use swadloon::{
+    anilist::Metadata,
+    server::{MangaMetadata, Server},
+    Chapters, ResolvedImages,
+};
 
 use crate::error::Error;
 
@@ -105,34 +109,26 @@ pub fn upload_single(path: PathBuf, server: &Server, full_update: bool) {
         cover_extra_large,
     };
 
-    let manga = match server.get_manga(metadata.mal_id.unwrap()) {
+    let metadata: MangaMetadata = (metadata, images).into();
+
+    let manga = match server.get_manga(metadata.anilist_id) {
         Ok(manga) => {
             println!(
                 "Updating manga {} '{}'",
-                metadata.mal_id.unwrap(),
-                metadata
-                    .title
-                    .english
-                    .as_ref()
-                    .unwrap_or(&metadata.title.romaji)
+                metadata.mal_id, metadata.title
             );
             let manga =
-                server.update_manga(&manga, &metadata, &images).unwrap();
+                server.update_manga(&manga, metadata).unwrap();
             manga
         }
 
         Err(swadloon::Error::ServerNoRecord) => {
             println!(
                 "Creating new manga {} '{}'",
-                metadata.mal_id.unwrap(),
-                metadata
-                    .title
-                    .english
-                    .as_ref()
-                    .unwrap_or(&metadata.title.romaji),
+                metadata.mal_id, metadata.title
             );
             server
-                .create_manga(&metadata, &images)
+                .create_manga(metadata)
                 .expect("Failed to create new manga on the server")
         }
 
