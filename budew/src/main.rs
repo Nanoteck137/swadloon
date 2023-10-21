@@ -176,9 +176,5 @@ fn main() {
             serde_json::to_string_pretty(&manga).unwrap(),
         )
         .unwrap();
-
-        let mut dest = args.out_dir.clone();
-        dest.push(id);
-        std::os::unix::fs::symlink(path, dest).unwrap();
     }
 }
