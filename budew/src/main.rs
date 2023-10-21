@@ -12,7 +12,6 @@ use swadloon::{anilist::Metadata, ChapterEntry};
 #[command(author, version, about, long_about = None)]
 struct Args {
     collection_path: PathBuf,
-    out_dir: PathBuf,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -79,8 +78,6 @@ fn main() {
 
     let args = Args::parse();
     println!("Args: {:#?}", args);
-
-    std::fs::create_dir_all(&args.out_dir).unwrap();
 
     for path in args.collection_path.read_dir().unwrap() {
         let path = path.unwrap();
