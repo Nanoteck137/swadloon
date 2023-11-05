@@ -20,6 +20,20 @@ pub struct MangaMetadata {
     pub title: String,
     pub cover: String,
 
+    pub description: String,
+
+    #[serde(rename = "anilistId")]
+    pub anilist_id: usize,
+    #[serde(rename = "malId")]
+    pub mal_id: Option<usize>,
+
+    pub status: String,
+
+    #[serde(rename = "startDate")]
+    pub start_date: String,
+    #[serde(rename = "endDate")]
+    pub end_date: String,
+
     pub chapters: Vec<ChapterMetadata>,
 }
 
