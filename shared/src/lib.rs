@@ -20,3 +20,12 @@ pub struct MangaMetadata {
 
     pub chapters: Vec<ChapterMetadata>,
 }
+
+const MANGA_CUID_LENGTH: u16 = 8;
+
+fn gen_manga_id() -> String {
+    // TODO(patrik): Lazy static?
+    let constructor =
+        cuid2::CuidConstructor::new().with_length(MANGA_CUID_LENGTH);
+    constructor.create_id()
+}
