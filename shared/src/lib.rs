@@ -7,16 +7,16 @@ pub mod anilist;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ChapterMetadata {
-    index: usize,
-    name: String,
-    pages: Vec<String>,
+    pub index: usize,
+    pub name: String,
+    pub pages: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MangaMetadata {
-    id: String,
-    title: String,
-    cover: String,
+    pub id: String,
+    pub title: String,
+    pub cover: String,
 
-    chapters: Vec<ChapterMetadata>,
+    pub chapters: Vec<ChapterMetadata>,
 }
