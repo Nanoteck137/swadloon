@@ -25,7 +25,7 @@ pub struct MangaMetadata {
     #[serde(rename = "anilistId")]
     pub anilist_id: usize,
     #[serde(rename = "malId")]
-    pub mal_id: Option<usize>,
+    pub mal_id: usize,
 
     pub status: String,
 
