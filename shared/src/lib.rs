@@ -1,3 +1,5 @@
+use std::{path::PathBuf, fs::File};
+
 use serde::{Serialize, Deserialize};
 
 pub use error::{Error, Result};
@@ -28,4 +30,42 @@ pub fn gen_manga_id() -> String {
     let constructor =
         cuid2::CuidConstructor::new().with_length(MANGA_CUID_LENGTH);
     constructor.create_id()
+}
+
+pub fn download_image(name: &str, url: &str, dest: &PathBuf) -> PathBuf {
+    let dest_files = dest
+        .read_dir()
+        .unwrap()
+        .map(|i| i.unwrap().path())
+        .collect::<Vec<_>>();
+    let has_image = dest_files
+        .iter()
+        .filter(|i| i.file_stem().unwrap() == name)
+        .next();
+
+    if let Some(path) = has_image {
+        println!("Skipping downloading '{}'", name);
+        return path.clone();
+    }
+
+    let client = reqwest::blocking::Client::new();
+    let mut res = client.get(url).send().unwrap();
+
+    let content_type =
+        res.headers().get("content-type").unwrap().to_str().unwrap();
+
+    let ext = match content_type {
+        "image/jpeg" => "jpeg",
+        "image/png" => "png",
+        _ => unimplemented!("Unknown content type: {}", content_type),
+    };
+
+    let mut filepath = dest.clone();
+    filepath.push(name);
+    filepath.set_extension(ext);
+
+    let mut file = File::create(&filepath).unwrap();
+    res.copy_to(&mut file).unwrap();
+
+    filepath
 }
