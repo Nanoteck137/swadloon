@@ -18,6 +18,22 @@ pub struct MetadataDate {
     pub year: Option<usize>,
 }
 
+impl MetadataDate {
+    pub fn to_iso8601(&self) -> String {
+        let date = iso8601::Date::YMD {
+            year: self.year.unwrap_or(0) as i32,
+            month: self.month.unwrap_or(0) as u32,
+            day: self.day.unwrap_or(0) as u32,
+        };
+        let date = iso8601::DateTime {
+            date,
+            time: iso8601::Time::default(),
+        };
+
+        date.to_string()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetadataTitle {
     pub english: Option<String>,
